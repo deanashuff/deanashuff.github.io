@@ -22,19 +22,28 @@
   </svg>
 </div>
 -->
+<style>
+html, body { margin:0; padding:0; overflow:hidden; }
+svg { position:fixed; top:0; left:0; height:100%; width:100%; }
+</style>
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script src="https://d3js.org/d3-force.v1.min.js"></script>
 <div>
-	<svg id="gravity" width="1280" height="900"></svg>
+	<svg id="gravity"></svg>
 </div>
 <script>
 var nodes = [{radius:200, x:400, y:1, id:'First'}];
 var simulation = d3.forceSimulation(nodes)
 var y = d3.forceY(600);
+
+var svg = d3.select("#gravity");
+
 function gravity(alpha) {
+  var ymax = svg.node().scrollHeight - 150;
+  var xmax = svg.node().scrollWidth - 150;
   for (var i = 0, n = nodes.length, node, k = alpha * 0.1; i < n; ++i) {
     node = nodes[i];
-    if (node.y > 700 && (node.vy >= 0)) {
+    if (node.y > ymax && (node.vy >= 0)) {
     	if (node.vy < 4) {
     		node.vy = 0;
     	}
@@ -43,15 +52,19 @@ function gravity(alpha) {
 	    }
     }
     else {
-    	node.vy += (10+node.y) * k;
+		node.vy += 400*k;
+    }
+    if ((node.x > xmax && node.vx > 0) || (node.x < 0 && node.vx < 0)) {
+		node.vx = 0.9*(-node.vx);
+    }
+    else if (node.vy == 0) {
+    	node.vx = 0.97*node.vx;
     }
   }
 }
 simulation.force("gravity", gravity);
 simulation.velocityDecay(0.01);
-//simulation.force("yAxis", y.strength(function(d,i) { return (0.001); }));
 
-var svg = d3.select("#gravity");
 svg.selectAll("circle")
 	.data(nodes)
 	.enter().append("svg:circle")
@@ -65,16 +78,22 @@ svg.selectAll("circle")
 function dragstarted(d) { 
     simulation.restart();
 	simulation.velocityDecay(0.01);
+	d.sx = 0;
+	d.sy = 0;
     d.fx = d.x;
     d.fy = d.y;
 }
 
 function dragged(d) {
+	d.sx = d3.event.x - d.fx;
+	d.sy = d3.event.y - d.fy;
     d.fx = d3.event.x;
     d.fy = d3.event.y;
 }
 
 function dragended(d) {
+    d.vx = d.sx;
+    d.vy = d.sy;
     d.fx = null;
     d.fy = null;
     simulation.alphaTarget(0.1);
@@ -85,32 +104,5 @@ simulation.on("tick", function(e) {
 		.attr("cx", function(d) { return d.x; })
 		.attr("cy", function(d) { return d.y; });
 });
-
-function collide(node) {
-  var r = node.radius + 16,
-      nx1 = node.x - r,
-      nx2 = node.x + r,
-      ny1 = node.y - r,
-      ny2 = node.y + r;
-  return function(quad, x1, y1, x2, y2) {
-    if (quad.point && (quad.point !== node)) {
-      var x = node.x - quad.point.x,
-          y = node.y - quad.point.y,
-          l = Math.sqrt(x * x + y * y),
-          r = node.radius + quad.point.radius;
-      if (l < r) {
-        l = (l - r) / l * .5;
-        node.x -= x *= l;
-        node.y -= y *= l;
-        quad.point.x += x;
-        quad.point.y += y;
-      }
-    }
-    return x1 > nx2
-        || x2 < nx1
-        || y1 > ny2
-        || y2 < ny1;
-  };
-}
 
 </script>
