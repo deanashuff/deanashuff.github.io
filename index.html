@@ -43,7 +43,7 @@ var game = (function () {
 	var g = {};
 	g.level = 0;
 	g.record = '';
-	g.goals = ['D','L','R','DD','DL','DR','DDD','DDL','DDR','DLD','DLR','DRD','DRL'];
+	g.goals = ['D','L','R','DD','DL','DR','DDD','DDL','DDR','DLD','DLR','DRD','DRL','LDR','LDD','LRD','LRL','RDD','RDL','RLD','RLR'];
 	g.goal = g.goals[g.level];
 	g.bounce = function (wall) {
 		g.record = g.record + wall;
@@ -58,7 +58,7 @@ var game = (function () {
 	g.advance = function () {
 		if (g.success() == 'winning') {
 			g.level = g.level + 1;
-			if (g.level > g.goals.length) { g.level = 0; }
+			if (g.level >= g.goals.length) { g.level = 0; }
 			g.record = '';
 			g.goal = g.goals[g.level];
 		}
