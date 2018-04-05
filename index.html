@@ -25,6 +25,9 @@
 <style>
 html, body { margin:0; padding:0; overflow:hidden; }
 svg { position:fixed; top:0; left:0; height:100%; width:100%; }
+.txt { position:relative; top:20px; float:center; font-size:20px; fill:blue; }
+text.winning { fill:green; }
+text.losing { fill:red; }
 </style>
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script src="https://d3js.org/d3-force.v1.min.js"></script>
@@ -32,9 +35,46 @@ svg { position:fixed; top:0; left:0; height:100%; width:100%; }
 	<svg id="gravity"></svg>
 </div>
 <script>
+
 var nodes = [{radius:200, x:400, y:1, id:'First'}];
 var simulation = d3.forceSimulation(nodes)
 var y = d3.forceY(600);
+var game = (function () {
+	var g = {};
+	g.level = 0;
+	g.record = '';
+	g.goals = ['D','L','R','DD','DL','DR','DDD','DDL','DDR','DLD','DLR','DRD','DRL'];
+	g.goal = g.goals[g.level];
+	g.bounce = function (wall) {
+		g.record = g.record + wall;
+	}
+	g.clear = function () {
+		g.record = '';
+	}
+	g.success = function () {
+		if (g.record.length < g.goal.length) { return 'unknown'; }
+		return g.record.substring(0,g.goal.length) == g.goal ? 'winning' : 'losing';
+	}
+	g.advance = function () {
+		if (g.success() == 'winning') {
+			g.level = g.level + 1;
+			if (g.level > g.goals.length) { g.level = 0; }
+			g.record = '';
+			g.goal = g.goals[g.level];
+		}
+	}
+	g.format = function (str) {
+		var o = '';
+		for (c in str) {
+			if (str[c] == 'D') { o = o + 'Down '; }
+			if (str[c] == 'L') { o = o + 'Doo '; }
+			if (str[c] == 'R') { o = o + 'Be '; }
+		}
+		return o;
+	}
+	return g;
+}
+)();
 
 var svg = d3.select("#gravity");
 
@@ -49,21 +89,43 @@ function gravity(alpha) {
     	}
     	else {
 	    	node.vy = 0.9*(-node.vy);
+	    	game.bounce('D');
 	    }
     }
     else {
 		node.vy += 400*k;
     }
-    if ((node.x > xmax && node.vx > 0) || (node.x < 0 && node.vx < 0)) {
+    if (node.x > xmax && node.vx > 0) {
 		node.vx = 0.9*(-node.vx);
+		game.bounce('R');
+    }
+    else if (node.x < 150 && node.vx < 0) {
+		node.vx = 0.9*(-node.vx);
+		game.bounce('L');
     }
     else if (node.vy == 0) {
     	node.vx = 0.97*node.vx;
     }
   }
 }
+
 simulation.force("gravity", gravity);
 simulation.velocityDecay(0.01);
+simulation.alphaTarget(0.1);
+
+var goal = svg.append("text")
+	.attr("x", 20)
+	.attr("y", 20)
+	.attr("id", "goal")
+	.attr("class", "txt")
+	.text("");
+
+var record = svg.append("text")
+	.attr("x", 20)
+	.attr("y", 60)
+	.attr("id", "record")
+	.attr("class", "txt")
+	.text("");
 
 svg.selectAll("circle")
 	.data(nodes)
@@ -76,12 +138,13 @@ svg.selectAll("circle")
         	.on("end",dragended));
 
 function dragstarted(d) { 
-    simulation.restart();
+	simulation.restart();
 	simulation.velocityDecay(0.01);
 	d.sx = 0;
 	d.sy = 0;
     d.fx = d.x;
     d.fy = d.y;
+    game.advance();
 }
 
 function dragged(d) {
@@ -89,6 +152,7 @@ function dragged(d) {
 	d.sy = d3.event.y - d.fy;
     d.fx = d3.event.x;
     d.fy = d3.event.y;
+    game.clear();
 }
 
 function dragended(d) {
@@ -103,6 +167,8 @@ simulation.on("tick", function(e) {
 	svg.selectAll("circle")
 		.attr("cx", function(d) { return d.x; })
 		.attr("cy", function(d) { return d.y; });
+	goal.text(game.level + ': ' + game.format(game.goal));
+	record.text(game.format(game.record)).attr("class",game.success());
 });
 
 </script>
