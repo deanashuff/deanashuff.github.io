@@ -3,6 +3,7 @@
 html, body { margin:0; padding:0; overflow:hidden; }
 svg { position:fixed; top:0; left:0; height:100%; width:100%; }
 #gametext { position:absolute; padding:20px; font-family:monaco; font-size:60px; color:blue; }
+#score { color:black; }
 .winning { color:green; }
 .losing { color:red; }
 </style>
@@ -21,6 +22,7 @@ var game = (function () {
 	var g = {};
 	g.level = 0;
 	g.tries = 0;
+	g.best = localStorage.getItem("game.best") || '';
 	g.record = '';
 	g.goals = [
 	  'D','L','R',
@@ -44,15 +46,19 @@ var game = (function () {
 	g.advance = function () {
 		var s = g.success();
 		if (s == 'winning') {
-			g.level = g.level + 1;
-			if (g.level >= g.goals.length) { g.level = 0; }
+			g.tries = g.tries + 1;
 			g.record = '';
-			g.tries = 0;
+			g.level = g.level + 1;
+			if (g.level >= g.goals.length) {
+				if (g.best === "" || g.score() > g.best) { g.best = g.score(); localStorage.setItem(g.best); }
+				g.level = 0;
+				g.tries = 0;
+			}
 			g.goal = g.goals[g.level];
 		}
 		else if (s == 'losing') {
-			g.record = '';
 			g.tries = g.tries + 1;
+			g.record = '';
 		}
 	}
 	g.format = function (str) {
@@ -63,6 +69,10 @@ var game = (function () {
 			if (str[c] == 'R') { o = o + 'Be '; }
 		}
 		return o;
+	}
+	g.score = function() {
+		var pct = g.goals.length / (g.tries + (g.goals.length - g.level));
+		return Math.round(pct*10000)/100;
 	}
 	return g;
 }
@@ -110,6 +120,11 @@ function gravity(alpha) {
 simulation.force("gravity", gravity);
 simulation.velocityDecay(0.01);
 simulation.alphaTarget(0.1);
+
+var score = d3.select("#gametext").append("div")
+	.attr("id", "score")
+	.attr("class", "txt")
+	.text("");
 
 var goal = d3.select("#gametext").append("div")
 	.attr("id", "goal")
@@ -161,9 +176,10 @@ simulation.on("tick", function(e) {
 	svg.selectAll("circle")
 		.attr("cx", function(d) { return d.x; })
 		.attr("cy", function(d) { return d.y; });
-	var s = game.format(game.goal) + ' : ' + game.level;
-	if (game.tries > 0) { s = s + ' : ' + game.tries + ' tries'; }
-	goal.text(s);
+	var s = "Level " + game.level + " : Score " + game.score() + "%";
+	if (game.best.length > 0) { s = s + " : Best " + game.best + "%"; }
+	score.text(s);
+	goal.text(game.format(game.goal));
 	record.text(game.format(game.record)).attr("class",game.success());
 });
 
