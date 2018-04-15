@@ -16,13 +16,14 @@ svg { position:fixed; top:0; left:0; height:100%; width:100%; }
 <script>
 
 var nodes = [{radius:200, x:400, y:1, id:'First'}];
-var simulation = d3.forceSimulation(nodes)
+var c20 = d3.schemeCategory20;
+var simulation = d3.forceSimulation(nodes);
 var y = d3.forceY(600);
 var game = (function () {
 	var g = {};
 	g.level = 0;
 	g.tries = 0;
-	g.best = localStorage.getItem("game.best") || '';
+	g.best = Number(localStorage.getItem('game.best')) || 0;
 	g.record = '';
 	g.goals = [
 	  'D','L','R',
@@ -50,7 +51,7 @@ var game = (function () {
 			g.record = '';
 			g.level = g.level + 1;
 			if (g.level >= g.goals.length) {
-				if (g.best === "" || g.score() > g.best) { g.best = g.score(); localStorage.setItem(g.best); }
+				if (g.score() > g.best) { g.best = g.score(); localStorage.setItem('game.best', g.best); }
 				g.level = 0;
 				g.tries = 0;
 			}
@@ -74,6 +75,15 @@ var game = (function () {
 		var pct = g.goals.length / (g.tries + (g.goals.length - g.level));
 		return Math.round(pct*10000)/100;
 	}
+	g.stats = function() {
+		var s = "" + game.level + "/" + (g.goals.length-1) + " : " + game.score() + "%";
+		var c = " : ";
+		if (game.score() > game.best) { c = " > "; }
+		else if (game.score() == game.best) { c = " = "; }
+		else { c = " < "; }
+		s = s + c + game.best + "%";
+		return s;
+	}
 	return g;
 }
 )();
@@ -86,9 +96,10 @@ function gravity(alpha) {
   for (var i = 0, n = nodes.length, node, k = alpha * 0.1; i < n; ++i) {
     node = nodes[i];
 
-    if ((node.y > ymax) && (node.vy >= 0)) {
+    if ((node.y >= ymax) && (node.vy >= 0)) {
     	if (node.vy < 4) {
     		node.vy = 0;
+    		node.y = ymax;
     	}
     	else {
 	    	node.vy = 0.9*(-node.vy);
@@ -140,11 +151,22 @@ svg.selectAll("circle")
 	.data(nodes)
 	.enter().append("svg:circle")
 		.attr("r", function(d) { return d.radius - 2; })
-		.style("fill", function(d, i) { return d3.rgb(50,50,255)})
+		.style("fill", function(d, i) {
+			return c20[Math.trunc(Math.random()*20)];
+		})
+		.on("click",clicked)
 		.call(d3.drag()
         	.on("start",dragstarted)
         	.on("drag",dragged)
         	.on("end",dragended));
+
+function clicked(d) {
+	if (d3.event.defaultPrevented) return; // dragged
+	d3.select(this).transition()
+		.style("fill", function(d, i) {
+			return c20[Math.trunc(Math.random()*20)];
+		});
+}
 
 function dragstarted(d) { 
 	simulation.restart();
@@ -176,9 +198,7 @@ simulation.on("tick", function(e) {
 	svg.selectAll("circle")
 		.attr("cx", function(d) { return d.x; })
 		.attr("cy", function(d) { return d.y; });
-	var s = "Level " + game.level + " : Score " + game.score() + "%";
-	if (game.best.length > 0) { s = s + " : Best " + game.best + "%"; }
-	score.text(s);
+	score.text(game.stats());
 	goal.text(game.format(game.goal));
 	record.text(game.format(game.record)).attr("class",game.success());
 });
