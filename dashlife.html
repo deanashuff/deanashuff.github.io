@@ -1,0 +1,75 @@
+<script defer src="https://use.fontawesome.com/releases/v5.0.8/js/all.js"></script>
+<style>
+html, body { margin:0; padding:0; overflow:hidden; }
+svg { position:fixed; top:10; left:10; height:500px; width:500px; border: 2px solid black; }
+#gametext { position:absolute; padding:20px; font-family:monaco; font-size:60px; color:blue; }
+#score { color:black; }
+.winning { color:green; }
+.losing { color:red; }
+
+</style>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://d3js.org/d3-force.v1.min.js"></script>
+<div>
+	<div id="gametext"></div>
+	<svg id="lifegrid"></svg>
+</div>
+<script>
+
+var life = (function () {
+	var g = {}, row, col;
+	g.w = 100;
+	g.h = 75;
+	g.level = 0;
+	g.grid = new Array(g.y);
+	for (row=0; row<g.w; row++) {
+		g.grid[row] = new Array(g.x).fill(0);
+		for (col=0; col<g.h; col++) {
+			g.grid[row][col] = {'x':col, 'y':row}
+		}
+	}
+
+	g.clear = function () {
+		g.level = 0;
+	}
+	return g;
+}
+)();
+
+var square = 20, w=100, h=75;
+
+var svg = d3.select('#lifegrid');
+
+var gridData = d3.range(h);
+var sz = 10;
+
+for (var n = 0; n < w; n++) {
+	var row = svg.selectAll(".row")
+		.data(life.grid)
+		.enter().append("g")
+		.attr("class","row");
+
+	var col = row.selectAll(".cell")
+		.data(function(d) { return d; })
+		.enter().append("rect")
+		.attr("class","cell")
+		.attr("x", function(d, i) { return d.x * sz; })
+		.attr("y", function(d, i) { return d.y * sz; })
+		.attr("width", function(d) { return sz; })
+		.attr("height", function(d) { return sz; })
+		.style("fill", "#aaa")
+	    .style("stroke", "#fff");
+
+    // test with some feedback
+    /*
+    var test = rows.on('mouseover', function (d, i) {
+      d3.select('#grid-ref').text(function () {
+        return 'row: ' + (n + 1) + ' | ' + 'column: ' + (i + 1);
+      });
+      d3.selectAll('.square').attr('fill', 'white');
+      d3.select(this).attr('fill', '#7AC143');
+    });
+*/
+}
+
+</script>
