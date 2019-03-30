@@ -1,75 +1,243 @@
-<script defer src="https://use.fontawesome.com/releases/v5.0.8/js/all.js"></script>
+<head>
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.1/css/all.css" integrity="sha384-50oBUHEmvpQ+1lW4y57PTFmhCaXp0ML5d60M1M7uH2+nqUivzIebhndOJK28anvf" crossorigin="anonymous">
+<link href="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.no-icons.min.css" rel="stylesheet">
+<link href="https://netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css" rel="stylesheet">
+</head>
+<!-- <script defer src="https://use.fontawesome.com/releases/v5.0.8/js/all.js"></script> -->
 <style>
 html, body { margin:0; padding:0; overflow:hidden; }
-svg { position:fixed; top:10; left:10; height:500px; width:500px; border: 2px solid black; }
-#gametext { position:absolute; padding:20px; font-family:monaco; font-size:60px; color:blue; }
-#score { color:black; }
-.winning { color:green; }
-.losing { color:red; }
+#maindiv { position:relative; top:0px; left:0px; height:100%; width:100%; }
+#maindiv div { box-sizing: border-box; }
+#lifestat { position:relative; height:50px; padding:10px; font-family:monaco; font-size:20px; color:blue; }
+#lifectrl { position:relative; height:50px; padding:10px; }
+#lifearea { position: relative; height: calc(100% - 100px); width: 100%; padding:10px; background-color: #333; }
+#lifearea svg { position:relative; height:100%; width:100%; background-color: #000; }
 
 </style>
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script src="https://d3js.org/d3-force.v1.min.js"></script>
-<div>
-	<div id="gametext"></div>
-	<svg id="lifegrid"></svg>
+<div id="maindiv">
+	<div id="lifestat">blank</div>
+	<div id="lifectrl">
+		<a id="lifeplay" class="btn" title="play" href="#"><i class="icon-play"></i></a>
+		<a id="lifestop" class="btn" title="stop" href="#"><i class="icon-stop"></i></a>
+		<a id="liferandom" class="btn" title="random" href="#"><i class="icon-random"></i></a>
+		<a id="lifeclear" class="btn" title="clear" href="#"><i class="fa fa-times-circle" aria-hidden="true"></i></a>
+	</div>
+	<div id="lifearea">
+		<svg id="lifegrid"></svg>
+	</div>
 </div>
 <script>
 
+
+
+var sz = 20;
+
 var life = (function () {
-	var g = {}, row, col;
-	g.w = 100;
-	g.h = 75;
-	g.level = 0;
-	g.grid = new Array(g.y);
-	for (row=0; row<g.w; row++) {
-		g.grid[row] = new Array(g.x).fill(0);
-		for (col=0; col<g.h; col++) {
-			g.grid[row][col] = {'x':col, 'y':row}
+	var g = {h:0, w:0}, row, col, first=true;
+	g.rules = { birthmin:3, birthmax:3, deathmin:2, deathmax: 3 };
+	g.stats = { births:0, deaths:0 };
+	g.grid = new Array();
+	function newCell(row, col) {
+		return { 'x': col, 'y':row, 'age':0, 'next':0 };
+	}
+	function countNeighbors(row, col) {
+		var x, y, r, c, sum=0;
+		for (y=row-1; y<=row+1; y++) {
+			r = ((g.h+y) % g.h);
+			for (x=col-1; x<=col+1; x++) {
+				c = ((g.w+x) % g.w);
+				if (r == row && c == col) { continue; }
+				if (g.grid[r][c].age > 0) { sum = sum+1; }
+			}
+		}
+		return sum;
+	}
+	function iter(f) {
+		for (row=0; row<g.h; row++) {
+			for (col=0; col<g.w; col++) {
+				f(g.grid[row][col]);
+			}
 		}
 	}
-
+	g.gen = function () {
+		var births=0, deaths=0;
+		iter(function(cell) {
+			var sum = countNeighbors(cell.y, cell.x);
+			var next = 0;
+			if (cell.age === 0) { // dead: check for birth
+				if (sum >= g.rules.birthmin && sum <= g.rules.birthmax) {
+					next = 1;
+					births = births+1;
+				}
+			}
+			else { // alive: check for death
+				if (sum >= g.rules.deathmin && sum <= g.rules.deathmax) {
+					next = cell.age + 1;
+				}
+				else {
+					deaths = deaths+1;
+				}
+			}
+			cell.next = next;
+		});
+		iter(function(cell) { cell.age = cell.next; });
+		g.stats.births = births;
+		g.stats.deaths = deaths;
+	};
+	g.randomize = function () {
+		iter(function(cell) { cell.age = Math.round(Math.random()); });
+	};
 	g.clear = function () {
-		g.level = 0;
-	}
+		iter(function(cell) { cell.age = 0; });
+	};
+	g.coords = function(pt) {
+		return [Math.floor(pt[0]/sz), Math.floor(pt[1]/sz)];
+	};
+	g.resize = function (h, w) {
+		if (h > g.h) { // add missing rows
+			for (row=g.h; row<h; row++) {
+				newrow = new Array(w).fill(0);
+				for (col=0; col<w; col++) {
+					newrow[col] = newCell(row,col);
+				}
+				g.grid.push(newrow);
+			}
+		}
+		while (h < g.grid.length) { // remove extra rows
+			g.grid.pop();
+		}
+		g.h = g.grid.length;
+		for (row=0; row<g.h; row++) {
+			for (col=g.w; col<w; col++) { // add missing columns
+				g.grid[row].push(newCell(row,col));
+			}
+			while (w < g.grid[row].length) { // remove extra columns
+				g.grid[row].pop();
+			}
+		}
+		g.w = w;
+		if (first) { g.randomize(); first=false; }
+	};
+
 	return g;
 }
 )();
 
-var square = 20, w=100, h=75;
+var updateDisplay = function() {
+	var svg = d3.select('#lifegrid');
 
-var svg = d3.select('#lifegrid');
-
-var gridData = d3.range(h);
-var sz = 10;
-
-for (var n = 0; n < w; n++) {
 	var row = svg.selectAll(".row")
-		.data(life.grid)
-		.enter().append("g")
+		.data(life.grid);
+	row.enter().append("g")
 		.attr("class","row");
+	row.exit().remove();
 
 	var col = row.selectAll(".cell")
-		.data(function(d) { return d; })
-		.enter().append("rect")
+		.data(function(d) {
+			return d;
+		});
+	col.enter().append("rect")
 		.attr("class","cell")
 		.attr("x", function(d, i) { return d.x * sz; })
 		.attr("y", function(d, i) { return d.y * sz; })
 		.attr("width", function(d) { return sz; })
 		.attr("height", function(d) { return sz; })
-		.style("fill", "#aaa")
-	    .style("stroke", "#fff");
+	col.style("fill", function(d) {
+			shade = 32*(Math.min(d.age,7) + 0);
+			return "rgb("+shade+","+shade+","+shade+")";
+		})
+	    .style("stroke", "#000");
+	col.exit().remove();
 
-    // test with some feedback
-    /*
-    var test = rows.on('mouseover', function (d, i) {
-      d3.select('#grid-ref').text(function () {
-        return 'row: ' + (n + 1) + ' | ' + 'column: ' + (i + 1);
-      });
-      d3.selectAll('.square').attr('fill', 'white');
-      d3.select(this).attr('fill', '#7AC143');
-    });
-*/
+  	var rect = d3.select("#lifegrid").node().getBoundingClientRect();
+    d3.select("#lifestat").text(
+    	'width: ' + rect.width + ', height: ' + rect.height
+    	+ '\nbirths: ' + life.stats.births + ', deaths: ' + life.stats.deaths
+    );
+
+};
+
+function doResize() {
+  	var rect = d3.select("#lifegrid").node().getBoundingClientRect();
+    d3.select("#lifestat").text('width: ' + rect.width + ', height: ' + rect.height);
+    life.resize(Math.floor(rect.height/sz), Math.floor(rect.width/sz));
+    updateDisplay();
+    updateDisplay();
 }
+window.addEventListener("resize",doResize);
+setTimeout(doResize,0);
+
+function doGen() {
+	life.gen();
+	updateDisplay();
+	updateDisplay();
+	if (life.stats.births + life.stats.deaths == 0) {
+		lifeStop();
+	}
+}
+var lifeTimer=null;
+function lifeStart() {
+	if (lifeTimer === null) {
+		lifeTimer = setInterval(doGen, 50);
+	}
+}
+function lifeStop() {
+	if (lifeTimer) {
+		clearInterval(lifeTimer);
+	}
+	lifeTimer = null;
+}
+function lifeRandom() {
+	life.randomize();
+	updateDisplay();
+}
+function lifeClear() {
+	life.clear();
+	updateDisplay();
+}
+var drawMode=null;
+function lifeGetCell(evt) {
+	var cell;
+	try {
+		var coords = d3.mouse(evt);
+		var xy = life.coords(coords);
+		cell = life.grid[xy[1]][xy[0]];
+	}
+	catch (err) {
+		cell = null;
+	}
+	return cell;
+}
+function lifeDrawStart() {
+	var cell = lifeGetCell(this);
+	if (cell && cell.age > 0) { drawMode = 0; }
+	else { drawMode = 10; }
+	lifeDrag(this);
+}
+function lifeDrag(evt) {
+	if (drawMode != null) {
+		if (!evt) { evt = this; }
+		var cell = lifeGetCell(evt);
+		if (cell) {
+			cell.age = drawMode;
+		}
+		updateDisplay();
+	}
+}
+function lifeDrawStop() {
+	drawMode = null;
+}
+
+d3.select("#lifeplay").on('click',lifeStart);
+d3.select("#lifestop").on('click',lifeStop);
+d3.select("#liferandom").on('click',lifeRandom);
+d3.select("#lifeclear").on('click',lifeClear);
+d3.select("#lifegrid").on('mousedown',lifeDrawStart);
+d3.select("#lifegrid").on('mousemove',lifeDrag);
+d3.select("#lifegrid").on('mouseup',lifeDrawStop);
+
+lifeStart();
 
 </script>
