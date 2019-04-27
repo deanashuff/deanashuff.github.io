@@ -1,0 +1,165 @@
+<style>
+@font-face {
+  font-family: 'appleii';
+  src: url('pr/PrintChar21.ttf') format('truetype');
+}
+.mycanvas {
+	background: #000;
+}
+.appleii {
+	font-family: appleii;
+	background: #000;
+	color: #0F0;
+	padding: 20px;
+}
+</style>
+
+<p>Here is a reproduction of a program I wrote circa 1980 on an appleII plus computer.</p>
+<canvas id='mycanvas' class='mycanvas' width=280 height=192></canvas>
+<p>The following is the source code for the original program.</p>
+<pre class='appleii'>
+] LIST
+
+5 J = 0: REM  INITIALIZE COUNTER
+10  HGR : REM  SET HI RES GRAPHICS MODE
+12 X0 = 10:Y0 = 50: REM  SET STARTING POSITION
+14 XV = 5:YV = 3: REM  SET X AND Y VELOCITIES
+16  REM  CALCULATE NEW POSITION
+18 NX = X0 + XV:NY = Y0 + YV
+20  REM  IF NAME IS OFF SCREEN, BOUNCE
+22  IF NX + 120 > 279 THEN NX = 159:XV =  - XV
+24  IF NX < 10 THEN NX = 10:XV = - XV
+26  IF NY > 159 THEN NY = 159:YV = - YV
+28  IF NY - 50 < 0 THEN NY = 50:YV = -YV
+30  REM  PLOT NAME
+35 X = NX:Y = NY
+40  HCOLOR= 3
+50  GOSUB 500
+60  GOSUB 2000
+70  HCOLOR= 0
+80  GOSUB 500
+90  GOSUB 2000
+95 X0 = NX:Y0 = NY
+100 J = J + 1: IF J < 250 THEN  GOTO 18
+110 END
+500  GOSUB 1000
+510  GOSUB 1100
+520  GOSUB 1200
+530  GOSUB 1300
+540  RETURN
+1000  HPLOT X,Y TO X,Y - 40
+1010  HPLOT  TO X + 20,Y - 40
+1020  HPLOT  TO X + 25,Y - 35
+1030  HPLOT  TO X + 25,Y - 5
+1040  HPLOT  TO X + 20,Y
+1050  HPLOT  TO X,Y
+1060  RETURN
+1100 XE = X + 40:YE = Y
+1110  HPLOT XE,YE TO XE + 15,YE
+1120  HPLOT XE - 1,YE - 1 TO XE - 1, YE - 20
+1130  HPLOT XE,YE - 21 TO XE + 14,YE - 21
+1140  HPLOT XE + 15,YE - 20 TO XE + 15,YE - 10
+1150  HPLOT  TO XE,YE - 10
+1160  RETURN
+1200 XA = X + 70
+1205 YA = Y
+1210  HPLOT XA + 3,YA TO XA,YA - 3
+1220  HPLOT  TO XA,YA - 18 TO XA + 3,YA - 21
+1230  HPLOT  TO XA + 12,YA - 21 TO XA + 15,YA - 18
+1240  HPLOT  TO XA + 20,YA
+1250  HPLOT XA + 15,YA - 18 TO XA + 15,YA - 3
+1260  HPLOT  TO XA + 12, YA TO XA + 3,YA
+1270  RETURN
+1300 XN = X + 105:YN = Y
+1310  HPLOT XN,YN TO XN,YN - 21
+1320  HPLOT XN,YN - 16 TO XN + 5,YN - 21
+1330  HPLOT  TO XN + 10,YN - 21 TO XN + 15,YN - 16
+1340  HPLOT  TO XN + 15,YN
+1350  RETURN
+2000  FOR I = 1 TO 2: NEXT I
+2010  RETURN
+</pre>
+
+<script>
+var can = document.getElementById("mycanvas");
+var ctx = can.getContext("2d");
+var ox=0, oy=0;
+ctx.strokeStyle = "#0F0";
+
+function clear() {
+	ctx.clearRect(0,0,can.width,can.height);
+}
+
+function hplot(x1,y1,x2,y2) {
+	ctx.beginPath();
+	ctx.moveTo(ox+x1,oy+y1);
+	ctx.lineTo(ox+x2,oy+y2);
+	ctx.stroke();
+}
+
+function drawD(x,y) {
+	hplot(x,y,x,y-40);
+	hplot(x,y-40,x+20,y-40);
+	hplot(x+20,y-40,x+25,y-35);
+	hplot(x+25,y-35,x+25,y-5);
+	hplot(x+25,y-5,x+20,y);
+	hplot(x+20,y,x,y);
+}
+function drawE(x,y) {
+	hplot(x,y,x+15,y);
+	hplot(x-1,y-1,x-1,y-20);
+	hplot(x,y-21,x+14,y-21);
+	hplot(x+15,y-20,x+15,y-10);
+	hplot(x+15,y-10,x,y-10);
+}
+function drawA(x,y) {
+	hplot(x+3,y,x,y-3);
+	hplot(x,y-3,x,y-18);
+	hplot(x,y-18,x+3,y-21);
+	hplot(x+3,y-21,x+12,y-21);
+	hplot(x+12,y-21,x+15,y-18);
+	hplot(x+15,y-18,x+20,y);
+	hplot(x+15,y-18,x+15,y-3);
+	hplot(x+15,y-3,x+12,y);
+	hplot(x+12,y,x+3,y);
+}
+function drawN(x,y) {
+	hplot(x,y,x,y-21);
+	hplot(x,y-16,x+5,y-21);
+	hplot(x+5,y-21,x+10,y-21);
+	hplot(x+10,y-21,x+15,y-16);
+	hplot(x+15,y-16,x+15,y);
+}
+
+function drawName(x,y) {
+	drawD(x,y);
+	drawE(x+40,y);
+	drawA(x+70,y);
+	drawN(x+105,y);
+}
+function main() {
+	var x=10, y=50;
+	var xv=5, yv=3;
+	var id = null, j=0;
+	function iterate() {
+		nx = x + xv;
+		ny = y + yv;
+		if (nx + 120 > 279) { nx = 159; xv = -xv; }
+		if (nx < 10) { nx = 10; xv = -xv; }
+		if (ny > 159) { ny = 159; yv = -yv; }
+		if (ny - 50 < 0) { ny = 50; yv = -yv; }
+		x = nx; y = ny;
+		clear();
+		drawName(x,y);
+		j = j + 1;
+		if (j > 250) {
+			window.clearInterval(id);
+			id = null;
+		}
+	}
+	iterate();
+	id = window.setInterval(iterate, 100);
+}
+
+main();
+</script>

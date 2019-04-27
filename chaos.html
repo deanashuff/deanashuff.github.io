@@ -1,0 +1,102 @@
+<head>
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.1/css/all.css" integrity="sha384-50oBUHEmvpQ+1lW4y57PTFmhCaXp0ML5d60M1M7uH2+nqUivzIebhndOJK28anvf" crossorigin="anonymous">
+<link href="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.no-icons.min.css" rel="stylesheet">
+<link href="https://netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css" rel="stylesheet">
+</head>
+<!-- <script defer src="https://use.fontawesome.com/releases/v5.0.8/js/all.js"></script> -->
+<style>
+html, body { margin:0; padding:0; overflow:hidden; }
+#maindiv { position:relative; top:0px; left:0px; height:100%; width:100%; }
+#maindiv div { box-sizing: border-box; }
+#chaosstat { position:relative; height:50px; padding:10px; font-family:monaco; font-size:20px; color:blue; }
+#chaosctrl { position:relative; height:50px; padding:10px; }
+#chaosarea { position: relative; height: calc(100% - 100px); width: 100%; padding:10px; background-color: #DDD; }
+#chaosarea svg { position:relative; height:100%; width:100%; background-color: #000; }
+
+</style>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://d3js.org/d3-force.v1.min.js"></script>
+<div id="maindiv">
+	<div id="chaosstat">chaos</div>
+	<div id="lifectrl">
+		<p>This iterates z over f(z) = z^2 + c, where c is a constant on the complex plane.</p>
+		<p>Use arrow keys to move c, which is indicated by the red dot.</p>
+	</div>
+	<div id="chaosarea">
+		<canvas id="chaoscanvas" width="500" height="500"></canvas>
+	</div>
+</div>
+<script>
+
+var can = document.getElementById("chaoscanvas");
+var ctx = can.getContext("2d");
+var ox = 250, oy = 250;
+var scale=200;
+
+function clear() {
+	ctx.clearRect(0,0,can.width,can.height);
+}
+
+function plot(z,w) {
+	ctx.fillRect(ox+Math.floor(scale*z[0]), oy-Math.floor(scale*z[1]), w, w);
+}
+
+function cmult(a, b) {
+	real = a[0]*b[0] - a[1]*b[1];
+	imag = a[0]*b[1] + a[1]*b[0];
+	return [real, imag];
+}
+function cadd(a, b) {
+	return [a[0]+b[0], a[1]+b[1]];
+}
+
+function iterate(c) {
+	document.getElementById("chaosstat").innerHTML = "c = " + c[0] + " + " + c[1] + "i";
+	clear();
+	var z = [0,0], num=10000;
+	for (n=0; n<num; n=n+1) {
+		ctx.fillStyle = "#000";
+		plot(z,1);
+		next = cadd(cmult(z,z),c);
+		z = next;
+	}
+	ctx.fillStyle = "#D00";
+	plot(c,2);
+}
+//var c = [0.3126,0.5];
+//var c = [-0.761574,-0.0847596];
+var c = [-0.724774000000004, 0.18474039999999736];
+c = [-0.77568377,0.13646737];
+c = [-1, 0.25];
+c = [-1.0228, 0.252];
+c = [-0.9964, 0.2891];
+c = [-0.9961, 0.2900];
+c = [-0.9944, 0.2998];
+c = [-0.99537, 0.29387];
+c = [-1.4125, 0.0];
+c = [-0.77568377,0.13646737];
+c = [-0.74858377, 0.04366737];
+
+iterate(c,10000);
+
+function keyDownTextField(e) {
+	if (e.keyCode == 39) { // right
+		c[0] = c[0] + 0.0001;
+		iterate(c);
+	}
+	if (e.keyCode == 37) { // left
+		c[0] = c[0] - 0.0001;
+		iterate(c);
+	}
+	if (e.keyCode == 38) { // up
+		c[1] = c[1] + 0.0001;
+		iterate(c);
+	}
+	if (e.keyCode == 40) { // down
+		c[1] = c[1] - 0.0001;
+		iterate(c);
+	}
+}
+document.addEventListener("keydown", keyDownTextField, false);
+
+</script>
