@@ -15,7 +15,7 @@
 .masonry a {
 	padding: 10px;
 	margin: 0px;
-	font: bold 15px arial, sans-serif;
+	font: bold 20px arial, sans-serif;
 	color: grey;
 	text-decoration: none;
 }
@@ -31,4 +31,12 @@
 
 .masonry .brick:hover img {
   opacity: .75;
+}
+
+.dash-title {
+	font: bold 24px arial, sans-serif;
+}
+
+.dash-footer {
+	font: bold 14px arial, sans-serif;
 }
