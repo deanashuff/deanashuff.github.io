@@ -1,0 +1,309 @@
+<html>
+<head>
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+	<style>
+	g.cell rect { fill: #FFF; stroke: #222; }
+	g.cell text { text-anchor: middle; alignment-baseline: middle; font-family: Arial, Helvetica, sans-serif; font-size: 32px; }
+	g.selected rect { fill: #CCC; }
+	g.conflict rect { fill: #FCC; }
+	g.dead rect { fill: #FCC; }
+	g.single rect { fill: #CFC; }
+	g.selected.conflict rect { fill: #DAA; }
+	g.selected.dead rect { fill: #DAA; }
+	g.selected.single rect { fill: #ADA; }
+	g.poss2 rect { fill: #CCF; }
+	g.poss3 rect { fill: #DDF; }
+	g.poss4 rect { fill: #EEF; }
+	g.selected.poss2 rect { fill: #AAD; }
+	g.selected.poss3 rect { fill: #BBD; }
+	g.selected.poss4 rect { fill: #CCD; }
+	g.row0 rect { stroke-dasharray: 0,50,150 }
+	#grid, #info { float: left; }
+	</style>
+</head>
+<body>
+<div id="grid-cont">
+  <svg id="grid"></svg>
+  <div>
+    <div>State: <textbox id="gstate"></textbox></div>
+    <div>Last Key: <textbox id="kstate"></textbox></div>
+    <div>Saved: <textbox id="saved"></textbox></div>
+    <div>Current: <textbox id="cstate"></textbox></div>
+    <div>Put [p]:<textarea id="putval" cols="150"></textarea></div>
+  </div>
+</div>
+<script>
+// General grid operations
+
+// Remove items in the second argument array from the first argument array
+function removeA(arr) {
+	var a = arguments, L = a.length, ax, what;
+	while (L > 1 && arr.length) {
+		what = a[--L];
+		while ((ax=arr.indexOf(what)) !== -1) {
+			arr.splice(ax, 1);
+		}
+	}
+	return arr;
+}
+function removeAAll(arr, ar2) {
+	var len = ar2.length;
+	for (var i=0; i<len; i++) {
+		arr = removeA(arr, ar2[i])
+	}
+	return arr;
+}
+function applyToGrid(grid, fn) {
+	for (var r=0; r<9; r++) {
+		for (var c=0; c<9; c++) {
+			fn(grid[r][c]);
+		}
+	}
+}
+function applyConstraints(grid, constraints) {
+	function resetCell(d) {
+		d.possibles = possibles.slice(0);
+		d.uniques = possibles.slice(0);
+	}
+	applyToGrid(grid, resetCell);
+	for (var i=0; i<constraints.length; i++) {
+		fc = constraints[i];
+		fn = function (d) {
+			fnInner = function (other) {
+				fc(d, other);
+			};
+			applyToGrid(grid, fnInner);
+		};
+		applyToGrid(grid, fn);
+	}
+}
+function gridData() {
+	var data = new Array();
+	for (var row = 0; row < 9; row++) {
+		data.push( new Array() );
+		for (var column = 0; column < 9; column++) {
+			data[row].push({
+				x: column,
+				y: row,
+				click: 0,
+				fixed: '',
+				possibles: possibles.slice(0),
+				uniques: possibles.slice(0)
+			})
+		}
+	}
+	return data;
+}
+function dumpGrid(grid) {
+	var out = '[';
+	for (var r=0; r<9; r++) {
+		if (r > 0) { out += ','; }
+		out += '[';
+		for (var c=0; c<9; c++) {
+			if (c > 0) { out += ','; }
+			val = grid[r][c].fixed;
+			if (val === '') { val = 0; }
+			out += val;
+		}
+		out += ']';
+	}
+	out += ']';
+	return out;
+}
+function setGrid(grid, state) {
+	var j = JSON.parse(state);
+	for (var r=0; r<9; r++) {
+		for (var c=0; c<9; c++) {
+			val = ''+j[r][c];
+			if (val === '0') { val = ''; }
+			grid[r][c].fixed = val;
+		}
+	}
+}
+function pushSave(grid) {
+	var str = dumpGrid(grid);
+	s.saved.push(str);
+}
+function popSave() {
+	s.saved.pop();
+}
+function restoreSave(grid) {
+	setGrid(grid,s.saved[s.saved.length-1]);
+}
+function putGrid(grid) {
+	var put = d3.select("#putval").node().value;
+	setGrid(grid,put);
+}
+
+// Define constraints for sudoku
+var possibles = ['1','2','3','4','5','6','7','8','9'];
+var constraints = [];
+
+// limit possibles by row
+constraints[0] = function (d, other) {
+	if (d.y === other.y && d.x !== other.x) {
+		d.possibles = removeA(d.possibles, other.fixed);
+	}
+}
+// limit possibles by column
+constraints[1] = function (d, other) {
+	if (d.x === other.x && d.y !== other.y) {
+		d.possibles = removeA(d.possibles, other.fixed);
+	}
+}
+// limit possibles by region
+constraints[2] = function (d, other) {
+	function regionx(a) { return Math.floor(a.x/3); }
+	function regiony(a) { return Math.floor(a.y/3); }
+	if (!(d.x === other.x && d.y === other.y)) {
+		if (regionx(d) === regionx(other) && regiony(d) === regiony(other)) {
+			d.possibles = removeA(d.possibles, other.fixed);
+		}
+	}
+}
+// limit possibles for fixed cells
+constraints[3] = function(d, other) {
+	if (d.fixed) { d.possibles = [d.fixed]; }
+}
+
+// check for uniques in rows
+constraints[4] = function(d, other) {
+	if (d.y === other.y && d.x !== other.x) {
+		d.uniques = removeAAll(d.uniques, other.possibles);
+	}
+}
+// check for uniques in columns
+constraints[5] = function (d, other) {
+	if (d.x === other.x && d.y !== other.y) {
+		d.uniques = removeAAll(d.uniques, other.possibles);
+	}
+}
+// check for uniques in regions
+constraints[6] = function (d, other) {
+	function regionx(a) { return Math.floor(a.x/3); }
+	function regiony(a) { return Math.floor(a.y/3); }
+	if (!(d.x === other.x && d.y === other.y)) {
+		if (regionx(d) === regionx(other) && regiony(d) === regiony(other)) {
+			d.uniques = removeAAll(d.uniques, other.possibles);
+		}
+	}
+}
+// limit possibles to uniques
+constraints[7] = function(d, other) {
+	if (d.uniques.length  === 1) { d.possibles = [d.uniques[0]]; }
+}
+
+
+// initialize the data
+var gridData = gridData();
+var p = { width: 50, height: 50, offset: 10 };
+var hidden = { x:0, y:0 };
+var s = { current: hidden, saved: [] };
+
+
+// Build the SVG grid skeleton
+var grid = d3.select("#grid")
+	.attr("width","510px")
+	.attr("height","510px");
+
+var gstate = d3.select("#gstate");
+
+var row = grid.selectAll(".row")
+	.data(gridData)
+	.enter().append("g")
+	.attr("class", "row")
+	.attr("class", function(d,i) { return "row row" + i; });
+
+var cell = row.selectAll(".cell")
+	.data(function(d) { return d; })
+	.enter().append("g")
+	.attr("class","cell")
+	.on('click', fnClick);
+
+var rect = cell.append("rect")
+	.attr("class","square")
+	.attr("x", function(d) { return d.x*p.width + p.offset; })
+	.attr("y", function(d) { return d.y*p.height + p.offset; })
+	.attr("width", function(d) { return p.width; })
+	.attr("height", function(d) { return p.height; });
+
+var gridBorders = [0,150,300,450];
+var hlines = grid.selectAll('.hlines')
+	.data(gridBorders)
+	.enter().append("line")
+	.attr("x1", 0 + p.offset)
+	.attr("y1", function(d) { return d + p.offset; })
+	.attr("x2", 450 + p.offset)
+	.attr("y2", function(d) { return d + p.offset; })
+	.attr("stroke-width", 3)
+	.attr("stroke", "black");
+
+var vlines = grid.selectAll('.vlines')
+	.data(gridBorders)
+	.enter().append("line")
+	.attr("x1", function(d) { return d + p.offset; })
+	.attr("y1", 0 + p.offset)
+	.attr("x2", function(d) { return d + p.offset; })
+	.attr("y2", 450 + p.offset)
+	.attr("stroke-width", 3)
+	.attr("stroke", "black");
+
+
+var text = cell.append("text")
+	.attr("x", function(d) { return (d.x + 0.5)*p.width + p.offset; })
+	.attr("y", function(d) { return (d.y + 0.5)*p.height + p.offset; });
+
+// Update data-driven DOM attributes
+function update() {
+	cell.attr("class", function(d) {
+		var cls = "cell";
+		if (s.current != hidden && d.x == s.current.x && d.y == s.current.y) { cls = cls + " selected"; }
+		if (d.fixed !== '' && d.possibles.indexOf(d.fixed) == -1) { cls = cls + " conflict"; }
+		if (d.fixed === '' && d.possibles.length == 1) { cls = cls + " single"; }
+		if (d.fixed === '' && d.possibles.length == 0) { cls = cls + " dead"; }
+		if (d.fixed === '' && d.possibles.length > 1) { cls = cls + " poss"+d.possibles.length; }
+		return cls;
+	});
+	cell.selectAll('text')
+		.text(function(d,i) { return d.fixed; });
+	gstate.text(dumpGrid(gridData));
+//	console.log(gridData);
+}
+
+// Handle events
+var fnClick = function(d) {
+	d.click ++;
+	s.current = d;
+	update();
+};
+cell.on('click', fnClick);
+update();
+
+document.onkeydown = function (e) {
+	e = e || window.event;
+	var charCode = e.keyCode || e.which;
+	var keyCode = e.key || String.fromCharCode(charCode);
+	if (charCode == 37) { s.current = gridData[s.current.y][(s.current.x+8)%9]; }
+	if (charCode == 39) { s.current = gridData[s.current.y][(s.current.x+1)%9]; }
+	if (charCode == 40) { s.current = gridData[(s.current.y+1)%9][s.current.x]; }
+	if (charCode == 38) { s.current = gridData[(s.current.y+8)%9][s.current.x]; }
+	if (e.ctrlKey && charCode == 90) { alert("Ctrl-Z"); }
+	if (['1','2','3','4','5','6','7','8','9'].indexOf(keyCode) > -1) { s.current.fixed = keyCode; }
+	if ([8,32].indexOf(charCode) > -1) { s.current.fixed = ""; }
+	if (charCode == 27) { s.current = hidden; }
+	if (charCode == 13) { if ( s.current.fixed === '' && s.current.possibles.length == 1) { s.current.fixed = s.current.possibles[0]; }}
+	if (charCode == 187 && e.shiftKey) { pushSave(gridData); }
+	if (charCode == 189) { popSave(); }
+	if (charCode == 82) { restoreSave(gridData); }
+	if (charCode == 80) { putGrid(gridData, ); }
+	d3.select('#kstate').text(''+charCode+' '+e.ctrlKey+' '+e.shiftKey);
+	d3.select('#saved').text(s.saved);
+	d3.select('#cstate').text(s.current.x + ',' + s.current.y + ' : ' + s.current.possibles + ' : ' + s.current.uniques);
+	applyConstraints(gridData,constraints);
+	update();
+}
+
+</script>
+
+</body>
+</html>

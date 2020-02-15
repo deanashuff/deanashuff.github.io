@@ -40,3 +40,19 @@
 .dash-footer {
 	font: bold 14px arial, sans-serif;
 }
+
+nobody .gist h2 a {
+  font: bold 20px arial, sans-serif;
+}
+
+nobody .gist h2 a:hover {
+	color: black;
+}
+
+body .gist .gist-meta {
+    display: none;
+}
+body .gist .gist-data, body .gist .gist-file {
+  border: none;
+  padding: none;
+}
