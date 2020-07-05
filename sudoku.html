@@ -25,11 +25,17 @@
 <div id="grid-cont">
   <svg id="grid"></svg>
   <div>
+  	<div>Commands<ul>
+  		<li>+: push to saved queue</li>
+  		<li>-: pop from saved queue</li>
+  		<li>r: restore from top of saved queue</li>
+  		<li>p: put state from input field to grid</li>
+  	</div>
     <div>State: <textbox id="gstate"></textbox></div>
     <div>Last Key: <textbox id="kstate"></textbox></div>
     <div>Saved: <textbox id="saved"></textbox></div>
     <div>Current: <textbox id="cstate"></textbox></div>
-    <div>Put [p]:<textarea id="putval" cols="150"></textarea></div>
+    <div>Put [p]:<textarea id="putval" cols="160"></textarea></div>
   </div>
 </div>
 <script>
@@ -267,6 +273,8 @@ function update() {
 	cell.selectAll('text')
 		.text(function(d,i) { return d.fixed; });
 	gstate.text(dumpGrid(gridData));
+	d3.select('#saved').text(s.saved);
+	d3.select('#cstate').text(s.current.x + ',' + s.current.y + ' : ' + s.current.possibles + ' : ' + s.current.uniques);
 //	console.log(gridData);
 }
 
@@ -292,13 +300,11 @@ document.onkeydown = function (e) {
 	if ([8,32].indexOf(charCode) > -1) { s.current.fixed = ""; }
 	if (charCode == 27) { s.current = hidden; }
 	if (charCode == 13) { if ( s.current.fixed === '' && s.current.possibles.length == 1) { s.current.fixed = s.current.possibles[0]; }}
-	if (charCode == 187 && e.shiftKey) { pushSave(gridData); }
-	if (charCode == 189) { popSave(); }
-	if (charCode == 82) { restoreSave(gridData); }
-	if (charCode == 80) { putGrid(gridData, ); }
+	if (charCode == 187 && e.shiftKey) { pushSave(gridData); } // + (plus)
+	if (charCode == 189) { popSave(); } // - (minus)
+	if (charCode == 82) { restoreSave(gridData); } // r
+	if (charCode == 80) { putGrid(gridData, ); } // p
 	d3.select('#kstate').text(''+charCode+' '+e.ctrlKey+' '+e.shiftKey);
-	d3.select('#saved').text(s.saved);
-	d3.select('#cstate').text(s.current.x + ',' + s.current.y + ' : ' + s.current.possibles + ' : ' + s.current.uniques);
 	applyConstraints(gridData,constraints);
 	update();
 }

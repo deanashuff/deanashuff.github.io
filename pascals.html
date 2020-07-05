@@ -1,0 +1,209 @@
+<html>
+<head>
+	<script src="https://d3js.org/d3.v4.min.js"></script>
+	<style>
+	g.cell rect { fill: #FFF; stroke: #222; stroke-width: 2px; z-index:0; }
+	g.cell text { text-anchor: middle; alignment-baseline: middle; font-family: Arial, Helvetica, sans-serif; font-size: 32px; }
+	g.selected rect { fill: #CCC; }
+	g.conflict rect { fill: #FCC; }
+	g.dead rect { fill: #FCC; }
+	g.single rect { fill: #CFC; }
+	g.selected.conflict rect { fill: #DAA; }
+	g.selected.dead rect { fill: #DAA; }
+	g.selected.single rect { fill: #ADA; }
+	g.poss2 rect { fill: #CCF; }
+	g.poss3 rect { fill: #DDF; }
+	g.poss4 rect { fill: #EEF; }
+	g.selected.poss2 rect { fill: #AAD; }
+	g.selected.poss3 rect { fill: #BBD; }
+	g.selected.poss4 rect { fill: #CCD; }
+    #grid, #info { float: left; }
+	</style>
+</head>
+<body>
+<div id="grid-cont">
+  <svg id="grid"></svg>
+  <div>
+  	<div>Controls<ul>
+  		<li>→: increase the divisor by one</li>
+  		<li>←: decrease the divisor by one</li>
+  		<li>↑: increase the divisor by 100</li>
+        <li>↓: decrease the divisor by 100</li>
+        <li>c: cycle color scheme</li>
+        <li>click and drag to select a line of cells</li>
+    </div>
+    <div>Divisor: <textbox id="divisor"></textbox></div>
+    <div>Hovered value: <textbox id="hover_value"></textbox>
+    <div>Hovered remainder: <textbox id="hover_remainder"></textbox></div>
+    <div>Color scheme: <textbox id="scheme"></textbox></div>
+    <div>Selected: <textbox id="selected"></textbox></div>
+    <div>Last Key: <textbox id="kstate"></textbox></div>
+  </div>
+</div>
+<script>
+function pascalsTriange(rowcount) {
+    var pt = new Array(), val;
+    for (var r=0; r<rowcount; r++) {
+        row = new Array();
+        for (var c=0; c<=r; c++) {
+            if ((c==0) || (c==r)) {
+                val = 1n;
+            }
+            else {
+                val = pt[r-1][c-1].value + pt[r-1][c].value;
+            }
+            row.push({'x':c, 'y':r, 'value':val});
+        }
+        pt.push(row);
+    }
+    return pt
+}
+
+// initialize the data
+var rc = 100;
+var pt = pascalsTriange(rc);
+var p = { width: 9, height: 9, offset: 10 };
+var s = { divisor:2n, theme: 0, selected: [0,0,0,0], drawing: false };
+
+
+// Build the SVG grid skeleton
+var grid = d3.select("#grid")
+	.attr("width","1020px")
+	.attr("height","1200px");
+var bg = grid.append("rect")
+    .attr("x",0)
+    .attr("y",0)
+    .attr("width","1020px")
+	.attr("height","1200px")
+    .attr("style","fill-opacity:0;")
+    .on('mouseover',function(d) { s.drawing = false; })
+    .on('mousedown', function(d) { s.selected = [0,0,0,0]; update(); });
+
+var gstate = d3.select("#gstate");
+
+var row = grid.selectAll(".row")
+	.data(pt)
+	.enter().append("g")
+	.attr("class", "row")
+	.attr("class", function(d,i) { return "row row" + i; });
+
+var cell = row.selectAll(".cell")
+	.data(function(d) { return d; })
+	.enter().append("g")
+	.attr("class","cell");
+
+var rect = cell.append("rect")
+	.attr("class","square")
+	.attr("x", function(d) { return (d.x + (rc-d.y)/2)*p.width + p.offset; })
+	.attr("y", function(d) { return d.y*p.height + p.offset; })
+	.attr("width", function(d) { return p.width; })
+    .attr("height", function(d) { return p.height; });
+
+var text = cell.append("text")
+	.attr("x", function(d,i) { return (d.x + (rc-d.y)/2 + 0.5)*p.width + p.offset; })
+	.attr("y", function(d,i) { return (d.y + 0.5)*p.height + p.offset; });
+
+var gridBorders = [0,150,300,450];
+
+var fnHover = function(d) {
+    d3.select('#hover_value').text(d.value);
+    d3.select('#hover_remainder').text(d.value % s.divisor);
+    if (s.drawing) {
+        s.selected[2] = d.x;
+        s.selected[3] = d.y;
+        update();
+    }
+};
+cell.on('mouseover',fnHover);
+
+var fnStart = function(d) {
+    s.selected[0] = d.x;
+    s.selected[1] = d.y;
+    update();
+    s.drawing = true;
+}
+cell.on('mousedown', fnStart);
+var fnEnd = function(d) {
+    s.drawing = false;
+}
+cell.on('mouseup', fnEnd);
+
+
+function onLine(x,y) {
+    var ax = s.selected[0], ay = s.selected[1], bx = s.selected[2], by = s.selected[3];
+    if ((x == ax && x == bx) && ((ay <= y && y <= by) || (by <= y && y <= ay))) { return true; }
+    if ((x < ax && x < bx) || (x > ax && x > bx)) { return false; }
+    if ((y < ay && y < by) || (y > ay && y > by)) { return false; }
+    if ((x == ax && y == ay) || (x == bx && y == by)) { return true; }
+    try {
+        var s1 = (s.selected[1] - y)/(s.selected[0] - x);
+        var s2 = (y - s.selected[3])/(x - s.selected[2]);
+        return (Math.abs(s1 - s2) < 0.0001);
+    } catch (error) {
+        return false;
+    }
+}
+
+function hslRainbow(percent) {
+    var hue = Math.floor(360*percent);
+    return `hsl(${hue},50%,50%);`;
+}
+function hslHue(hue, saturation, percent) {
+    var lightness = Math.floor(100*percent);
+    return `hsl(${hue},${saturation}%,${lightness}%);`;
+}
+function update() {
+    sel = [];
+    rect.attr("style", function(d) {
+        var percent = Number(d.value % s.divisor)/Number(s.divisor);
+        var theme = s.theme, hsl;
+        if (theme == 0) {
+            hsl = hslHue(0, 0, percent);
+        }
+        else if (theme < 8) {
+            hsl = hslHue(50*theme, 50, percent);
+        }
+        else {
+            hsl = hslRainbow(percent);
+        }
+        if (onLine(d.x, d.y)) {
+            hsl = `hsl(50,80%,80%);`;
+            sel.push(d.value);
+        }
+        return `fill:${hsl}`;
+    });
+    cell.attr("class", function(d) {
+        var cls="cell";
+		if (s.divisor > 0) {
+            remainder = d.value % s.divisor;
+            cls = cls + " remainder"+remainder;
+        }
+        return cls;
+    });
+    d3.select("#divisor").text(s.divisor);
+	d3.select('#scheme').text(''+s.theme);
+    d3.select('#selected').text(`(${s.selected[0]}, ${s.selected[1]}) to (${s.selected[2]}, ${s.selected[3]}): ${sel.join(", ")}`);
+}
+update();
+
+document.onkeydown = function (e) {
+	e = e || window.event;
+	var charCode = e.keyCode || e.which;
+    var keyCode = e.key || String.fromCharCode(charCode);
+    var handled = true;
+    if (charCode == 37) { s.divisor = s.divisor - 1n; }
+    else if (charCode == 38) { s.divisor = s.divisor + 100n; }
+    else if (charCode == 39) { s.divisor = s.divisor + 1n; }
+    else if (charCode == 40) { s.divisor = s.divisor - 100n; }
+    else if (charCode == 67 && !(e.ctrlKey || e.metaKey)) { s.theme = ((s.theme + 1) % 9); }
+    else { handled = false; }
+    if (s.divisor < 1n) { s.divisor = 1n; }
+    if (handled) { e.preventDefault(); }
+	d3.select('#kstate').text(''+charCode+' '+e.ctrlKey+' '+e.shiftKey);
+    update();
+};
+
+</script>
+
+</body>
+</html>
