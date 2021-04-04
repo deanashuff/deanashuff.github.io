@@ -1,0 +1,176 @@
+<script defer src="https://use.fontawesome.com/releases/v5.0.8/js/all.js"></script>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://d3js.org/d3-force.v1.min.js"></script>
+
+<style>
+html, body { margin:0; padding:0; overflow:hidden; }
+svg { position:fixed; top:0; left:0; height:100%; width:100%; }
+#gametext { position:absolute; padding:20px; font-family:monaco; font-size:60px; color:blue; }
+#score { color:black; }
+.winning { color:green; }
+.losing { color:red; }
+</style>
+
+<div>
+	<div id="gametext"></div>
+	<svg id="gravity"></svg>
+</div>
+
+<script>
+var nodes = [{type:'spawner', radius:70, x:200, y:200, id:'node0', fill:d3.color('black')}];
+var spawner = nodes[0];
+var nodeid = 1;
+var c20 = d3.schemeCategory20;
+var simulation = d3.forceSimulation(nodes);
+
+var svg = d3.select("#gravity");
+function updatenodes() {
+    ns = svg.selectAll(".node").data(nodes);
+	ns.enter().append("svg:circle")
+        .classed("node",true)
+        .attr("id", function(d) { return d.id; })
+		.attr("r", function(d) { return d.radius - 2; })
+        .attr("cx", function(d) { return d.x; })
+    	.attr("cy", function(d) { return d.y; })
+		.style("fill", function(d, i) { return d.fill; })
+		.on("click",clicked)
+		.call(d3.drag()
+            .on("start",dragstarted)
+            .on("drag",dragged)
+            .on("end",dragended));
+	ns.transition()
+		.attr("r", function(d) { return d.radius - 2; })
+		.style("fill", function(d, i) { return d.fill; });
+	ns.exit().remove();
+}
+updatenodes();
+
+function clicked(d) {
+	if (d3.event.defaultPrevented) return; // dragged
+//	d.fill = c20[Math.trunc(Math.random()*20)];
+	d.fill = c20[d.gravity];
+	d3.select(this).transition()
+		.style("fill", function(d, i) { return d.fill; });
+}
+
+function dragstarted(d) {
+	simulation.restart();
+	simulation.velocityDecay(0.01);
+	if (d.type == 'spawner') {
+		d.type = 'bouncer';
+		d.gravity = Math.trunc(Math.random()*8);
+		d.radius = 50;
+//		d.fill = c20[Math.trunc(Math.random()*20)];
+		d.fill = c20[d.gravity];
+		var idval = `node${nodeid}`;
+		spawner = {type:'spawner', radius:70, x:200, y:200, id:idval, fx:null, fy:null, vx:0, vy:0};
+	    nodes.push(spawner);
+    	nodeid = nodeid + 1;
+		updatenodes();
+	}
+	d.sx = 0;
+	d.sy = 0;
+    d.fx = d.x;
+    d.fy = d.y;
+}
+
+function dragged(d) {
+	d.sx = d3.event.x - d.fx;
+	d.sy = d3.event.y - d.fy;
+    d.fx = d3.event.x;
+    d.fy = d3.event.y;
+}
+
+function dragended(d) {
+    d.vx = d.sx;
+    d.vy = d.sy;
+    d.fx = null;
+    d.fy = null;
+    simulation.alphaTarget(0.1);
+	var dist = Math.sqrt(Math.pow(Math.abs(d.x - spawner.x),2) + Math.pow(Math.abs(d.y - spawner.y),2));
+	if (dist < d.radius) {
+		var i = nodes.indexOf(d);
+		nodes.splice(i, 1);
+	}
+}
+
+
+function gravity(alpha) {
+  var ymin = 25, xmin = 25;
+  var ymax = svg.node().scrollHeight - 25;
+  var xmax = svg.node().scrollWidth - 25;
+
+  for (var i = 0, n = nodes.length, node, k = alpha * 0.1; i < n; ++i) {
+    node = nodes[i];
+	if (node.type == 'spawner') {
+		node.x = svg.node().scrollWidth/2;
+		node.y = svg.node().scrollHeight/2;
+		continue;
+	}
+
+	// bounce top
+	if (node.y <= ymin && node.vy < 0) {
+		node.vy = 0.9*(-node.vy);
+		if (node.vy < 2) { node.vy = 0; node.y = ymin; }
+	}
+	// bounce bottom
+	if (node.y >= ymax && node.vy > 0) {
+		node.vy = 0.9*(-node.vy);
+		if (node.vy > -2) { node.vy = 0; node.y = ymax; }
+	}
+	// bounce left
+	if (node.x <= xmin && node.vx < 0) {
+		node.vx = 0.9*(-node.vx);
+		if (node.vx < 2) { node.vx = 0; node.x = xmin; }
+	}
+	// bounce right
+	if (node.x >= xmax && node.vx > 0) {
+		node.vx = 0.9*(-node.vx);
+		if (node.vx > -2) { node.vx = 0; node.x = xmax; }
+	}
+
+	// stillness
+	if (node.vx == 0 && Math.abs(node.vy) < 1) { node.vy = 0; }
+	if (node.vy == 0 && Math.abs(node.vx) < 1) { node.vx = 0; }
+
+	if ([0,4,7].includes(node.gravity)) {
+		// gravity down
+		if (node.y < ymax) { node.vy += 400*k; }
+	}
+
+	if ([1,4,5].includes(node.gravity)) {
+		// gravity left
+		if (node.x > xmin) { node.vx -= 400*k; }
+	}
+
+	if ([2,5,6].includes(node.gravity)) {
+		// gravity up
+		if (node.y > ymin) { node.vy -= 400*k; }
+	}
+
+	if ([3,6,7].includes(node.gravity)) {
+		// gravity right
+		if (node.x < xmax) { node.vx += 400*k; }
+	}
+
+	// stopped
+    if (node.vx == 0 && node.vy == 0) {
+//		node.gravity = (node.gravity + 1) % 8;
+		node.gravity = Math.trunc(Math.random()*8);
+		node.fill = c20[node.gravity];
+		updatenodes();
+    }
+  }
+}
+
+simulation.force("gravity", gravity);
+simulation.velocityDecay(0.01);
+simulation.alphaTarget(0.1);
+
+simulation.on("tick", function(e) {
+	svg.selectAll("circle")
+		.attr("cx", function(d) { return d.x; })
+		.attr("cy", function(d) { return d.y; });
+});
+
+</script>
