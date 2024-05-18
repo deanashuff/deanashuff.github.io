@@ -1,0 +1,170 @@
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://d3js.org/d3-force.v1.min.js"></script>
+
+<div>
+    <div style="display:default">
+    	<div id="kpull"></div>
+        <div id="krot"></div>
+        <div id="kangle"></div>
+        <div id="kpos"></div>
+        <div id="wind"></div>
+    </div>
+	<svg id="world" xmlns="http://www.w3.org/2000/svg" width="1500" height="1000">
+<!--        <path d="M300 100 C 300 100, 500 300, 500 300 C 400 240, 350 240, 300 300 C 250 240, 200 240, 100 300 C 300 100, 300 100, 300 100 Z" stroke="black" fill="green"></path> -->
+    </svg>
+</div>
+
+<script>
+/*
+1. render a stunt kite shape in SVG (render a filled shape from a bezier path)
+2. parameterize for position/scale/rotation/tilt (use transform attributes)
+3. controls pull/release left and right affecting rotation
+4. add vectors for velocity, gravity, wind
+4. generate variable wind (constant or based on elevation)
+5. add velocity based on wind and angle
+*/
+
+var c20 = d3.schemeCategory20;
+
+var data = {'kites': [
+    { id:'kite1', x:400, y:200, fill:d3.color(c20[Math.trunc(Math.random()*20)]), left:0, right:0, pleft:false, pright:false },
+]};
+//return c20[Math.trunc(Math.random()*20)];
+
+var svg = d3.select("#world");
+function updatenodes() {
+    for (i in data.kites) {
+        k = data.kites[i];
+        scale = 100;
+        // set path to render kite shape
+		pathstr = `M ${k.x} ${k.y}`;
+        pathstr += ` C ${k.x} ${k.y}, ${k.x+scale} ${k.y+scale}, ${k.x+scale} ${k.y+scale}`;
+        pathstr += ` C ${k.x+0.5*scale} ${k.y+0.7*scale}, ${k.x+0.25*scale} ${k.y+0.7*scale}, ${k.x} ${k.y+scale}`;
+        pathstr += ` C ${k.x-0.25*scale} ${k.y+0.7*scale}, ${k.x-0.5*scale} ${k.y+0.7*scale}, ${k.x-scale} ${k.y+scale}`;
+        pathstr += ` C ${k.x} ${k.y}, ${k.x} ${k.y}, ${k.x} ${k.y}`;
+        pathstr += ' Z';
+        pathstr = "M300 100 C 300 100, 500 300, 500 300 C 400 240, 350 240, 300 300 C 250 240, 200 240, 100 300 C 300 100, 300 100, 300 100 Z";
+        k.d = pathstr;
+    }
+
+    kites = svg.selectAll(".kite").data(data.kites);
+	kiteg = kites.enter().append("g")
+        .classed("kite",true)
+        .attr("transform", function(d) { return `translate(${k.x-300},${k.y-100}) rotate(${45-90*Math.random()},${300},${100}) scale(1 ${1-0.2*Math.random()})`});
+    kiteg.append("svg:path")
+        .attr("id", function(d) { return d.id; })
+        .attr("d", function(d) { return d.d; })
+        .style("stroke", function(d,i) { return "black"; })
+		.style("stroke-width", function(d,i) { return 2; })
+        .style("fill", function(d,i) { return d.fill; });
+//    kiteg.transition()
+//        .attr("transform", function(d) { return `translate(${k.x-300},${k.y-100}) rotate(${45-90*Math.random()},${300},${100}) scale(1 1)`});
+//	kiteg.exit().remove();
+
+}
+
+//updatenodes();
+
+var simulation = d3.forceSimulation(data.kites);
+simulation.force("gravity", updatenodes);
+simulation.velocityDecay(0.01);
+simulation.alphaTarget(0.1);
+var curkite = data.kites[0];
+curkite.rot = 0;
+curkite.angle = { h: 0, v: 0 }
+curkite.scale = { x: 1, y: 1 }
+var wind = {current: 10.5, min: 6, max: 15};
+var gust = {current: 0, min: -5, max: 5};
+var yaw = {current: 0, min: -0.25, max: 0.25};
+
+simulation.on("tick", function(e) {
+    // Update wind by random variability
+    wind.current = wind.current + 0.2*(0.5 - Math.random());
+    if (wind.current < wind.min) { wind.current = wind.min; }
+    if (wind.current > wind.max) { wind.current = wind.max; }
+    gust.current = gust.current + 0.5*(0.5 - Math.random());
+    if (gust.current < gust.min) { gust.current = gust.min; }
+    if (gust.current > gust.max) { gust.current = gust.max; }
+    d3.select('#wind').text(`wind: ${wind.current.toPrecision(4)}, gust: ${gust.current.toPrecision(4)}`);
+
+    // Set force based on pull and wind
+    var force = 0.4*wind.current + 0.4*gust.current + 0.01*(curkite.right+curkite.left);
+
+    // Update yaw by random variability
+    yaw.current = yaw.current + 0.4*(0.5 - Math.random());
+    if (yaw.current < yaw.min) { yaw.current = yaw.min; }
+    if (yaw.current > yaw.max) { yaw.current = yaw.max; }
+
+    // Adjust left pull
+    if (curkite.pleft && curkite.left < 400) { curkite.left += 3; }
+    else if (curkite.left > 0) { curkite.left -= 6; }
+    if (curkite.left < 0) { curkite.left = 0; }
+
+    // Adjust right pull
+    if (curkite.pright && curkite.right < 400) { curkite.right += 3; }
+    else if (curkite.right > 0) { curkite.right -= 6; }
+    if (curkite.right < 0) { curkite.right = 0; }
+    d3.select('#kpull').text(`pull: ${curkite.left.toPrecision(4)}, ${curkite.right.toPrecision(4)}`);
+
+    // Adjust rotation based on left/right pull
+    curkite.rot += yaw.current + force*(curkite.right - curkite.left)/50 || 0;
+    d3.select("#krot").text(`rotation: ${curkite.rot.toPrecision(4)}`);
+
+
+    // Adjust angle based on rotation and wind
+    curkite.angle.h += force*0.5*(Math.sin(curkite.rot*Math.PI/180)) - force*0.3*(Math.sin(curkite.angle.h*Math.PI/180)); //*Math.cos(curkite.angle.h*Math.PI/180));
+    curkite.angle.v += force*0.3*(Math.cos(curkite.rot*Math.PI/180)) - 1.3*(Math.sin(curkite.angle.v*Math.PI/180));
+    if (curkite.angle.h > 90) { curkite.angle.h = 90; }
+    if (curkite.angle.h < -90) { curkite.angle.h = -90; }
+    if (curkite.angle.v > 99) { curkite.angle.v = 99; }
+    if (curkite.angle.v < -20) { curkite.angle.v = -20; }
+    d3.select("#kangle").text(`angle: ${curkite.angle.h.toPrecision(4)}, ${curkite.angle.v.toPrecision(4)} : ${Math.cos(curkite.angle.h*Math.PI/180).toPrecision(4)}, ${Math.cos(curkite.angle.h*Math.PI/180).toPrecision(4)}`);
+
+    // Set position based on angle
+    p = 500;
+//    curkite.x = p*(1 + Math.sin((90-curkite.angle.v)*Math.PI/180)*Math.sin(curkite.angle.h*Math.PI/180));
+//    curkite.y = p*(1 - Math.cos((90-curkite.angle.v)*Math.PI/180));
+    curkite.x = p*(1 + Math.sin(curkite.angle.h*Math.PI/180));
+    curkite.y = p*(1 - Math.sin(curkite.angle.v*Math.PI/180));
+    d3.select("#kpos").text(`position: ${curkite.x}, ${curkite.y}`);
+
+    // Set tilt (scale) based on angle
+    curkite.scale.y = Math.cos(curkite.angle.h*0.5*Math.PI/180);
+    curkite.scale.y = Math.min(Math.cos(curkite.angle.h*0.5*Math.PI/180),Math.cos(curkite.angle.v*0.5*Math.PI/180));
+    //curkite.scale.y = Math.cos(curkite.angle.v*0.5*Math.PI/180);
+
+
+    svg.selectAll("g")
+        .attr("transform", function(d) { return `translate(${k.x},${k.y}) rotate(${Math.round(curkite.rot)},${300},${200}) scale(${curkite.scale.x} ${curkite.scale.y})`});
+});
+
+window.addEventListener("keydown", function(e) {
+    if (e.defaultPrevented) { return; }
+    var handled = true;
+    if (e.code == "KeyF") { // pull left
+        if (!e.repeat) { curkite.pleft = true; }
+        d3.select('#kleft').text(`${e.code} ${e.ctrlKey} ${e.shiftKey} ${e.repeat} ${curkite.left}`);
+    }
+    else if (e.code == "KeyJ") { // pull right
+        if (!e.repeat) { curkite.pright = true; }
+        d3.select('#kright').text(`${e.code} ${e.ctrlKey} ${e.shiftKey} ${e.repeat} ${curkite.right}`);
+    }
+    else { handled = false; }
+    if (handled) { e.preventDefault(); }
+});
+window.addEventListener("keyup", function(e) {
+    if (e.defaultPrevented) { return; }
+    var handled = true;
+    if (e.code == "KeyF") { // release left
+        curkite.pleft = false;
+        d3.select('#kleft').text(`${e.code} ${e.ctrlKey} ${e.shiftKey} ${e.repeat} release`);
+    }
+    else if (e.code == "KeyJ") { // release right
+        curkite.pright = false;
+        d3.select('#kright').text(`${e.code} ${e.ctrlKey} ${e.shiftKey} ${e.repeat} release`);
+    }
+    else { handled = false; }
+    if (handled) { e.preventDefault(); }
+});
+
+</script>
