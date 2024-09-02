@@ -1,0 +1,415 @@
+<script defer src="https://use.fontawesome.com/releases/v5.0.8/js/all.js"></script>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script src="https://d3js.org/d3-force.v1.min.js"></script>
+<!--
+Use the Link Force in the d3-force module to represent chains.
+Use a simulation.force to represent a machine, applying only to proximate nodes in the chain.
+Use a simulation.force to represent gravity.
+Provide interface actions to:
+1. create a new node, or delete an existing node
+2. link two nodes, or delete a link
+3. create a new machine or delete an existing machine
+-->
+<style>
+html, body { margin:0; padding:0; overflow:hidden; }
+svg { position:fixed; top:0; left:0; height:100%; width:100%; }
+#gametext { position:absolute; padding:20px; font-family:monaco; font-size:60px; color:blue; }
+#score { color:black; }
+.winning { color:green; }
+.losing { color:red; }
+.link { stroke-width: 5px; stroke: #444 }
+</style>
+
+<div>
+	<div id="gametext"></div>
+	<svg id="chains"></svg>
+</div>
+
+<script>
+
+// define variables including initial nodes, simulation, and svg
+var controls = [
+    {id:'control0', type:'mode', radius:20, x:200, y:200, fill:d3.color('black'), vx:0, vy:0, mode:'spawn'},
+    {id:'control1', type:'spawner', radius:20, x:200, y:300, fill:d3.color('black'), vx:0, vy:0}
+];
+var nodes = [
+    {id:'node10', type:'pin', radius:20, x:300, y:350, fill:d3.color('red'), vx:0, vy:0},
+    {id:'node11', type:'pin', radius:20, x:300, y:400, fill:d3.color('green'), vx:0, vy:0},
+    {id:'node12', type:'pin', radius:20, x:300, y:400, fill:d3.color('blue'), vx:0, vy:0}
+];
+var links = [{type:'link',source:nodes[0],target:nodes[1],value:0},{type:'link',source:nodes[1],target:nodes[2],value:0}];
+var flux = [];
+//var spawners = {'node0':nodes[0],'node1':nodes[1]};
+var nodeid = nodes.length;
+var c20 = d3.schemeCategory20;
+var simulation = d3.forceSimulation(nodes);
+var svg = d3.select("#chains");
+
+
+// update graphical elements (controls, nodes, and links)
+function updateelements() {
+    cs = svg.selectAll(".control").data(controls);
+	cs.enter().append("svg:circle")
+        .classed("control",true)
+        .attr("id", function(d) { return d.id; })
+		.attr("r", function(d) { return d.radius - 2; })
+        .attr("cx", function(d) { return d.x; })
+    	.attr("cy", function(d) { return d.y; })
+		.style("fill", function(d, i) { return d.fill; })
+		.on("click",clicked)
+		.call(d3.drag()
+            .on("start",dragstarted)
+            .on("drag",dragged)
+            .on("end",dragended));
+	cs.transition()
+        .duration(100)
+		.attr("r", function(d) { return d.radius - 2; })
+		.style("fill", function(d, i) { return d.fill; });
+	cs.exit().remove();
+
+    ns = svg.selectAll(".node").data(nodes);
+	ns.enter().append("svg:circle")
+        .classed("node",true)
+        .attr("id", function(d) { return d.id; })
+		.attr("r", function(d) { return d.radius - 2; })
+        .attr("cx", function(d) { return d.x; })
+    	.attr("cy", function(d) { return d.y; })
+		.style("fill", function(d, i) { return d.fill; })
+		.on("click",clicked)
+		.call(d3.drag()
+            .on("start",dragstarted)
+            .on("drag",dragged)
+            .on("end",dragended));
+	ns.transition()
+        .duration(100)
+		.attr("r", function(d) { return d.radius - 2; })
+		.style("fill", function(d, i) { return d.fill; });
+	ns.exit().remove();
+
+    ls = svg.selectAll(".link").data(links);
+    ls.enter().append("svg:line")
+        .classed("link",true)
+        .attr("id", function(d) { return d.id; })
+        .attr("x1", function(d) { return idtonode(d.source).x; })
+        .attr("y1", function(d) { return idtonode(d.source).y; })
+        .attr("x2", function(d) { return idtonode(d.target).x; })
+        .attr("y2", function(d) { return idtonode(d.target).y; })
+		.on("click",clicked)
+    ls.exit().remove();
+
+
+    simulation.alphaTarget(0.1).nodes(nodes).restart();
+    // let linkforce = simulation.force("links");
+    // if (linkforce) { linkforce.start(); }
+    // let collideforce = simulation.force("collide");
+    // if (collideforce) {
+    //     collideforce.start();
+    // }
+}
+updateelements();
+
+
+// Functions for manipulating nodes
+
+function idtonode(id) {
+    if (typeof id !== "string") { return id; }
+    return nodes.find(d => d.id === id);
+}
+
+function idstolink(a, b) {
+    return links.find(x => (x.source == a && x.target == b) || (x.target == a && x.source == b));
+}
+
+// perform the given function for all links associated with the given pin node
+function donodelinks(d, f) {
+    const ls = links.filter(l => (l.source == d.id || l.target == d.id));
+    for (let i = 0, n = ls.length; i < n; ++i) {
+        f(ls[i]);
+    }
+}
+
+function deletenode(d) {
+    // find and delete links associated with the given node
+    donodelinks(d, x => { let l = links.indexOf(x); links.splice(l, 1); });
+    // delete the given node from the nodes array
+    let i = nodes.indexOf(d);
+    nodes.splice(i, 1);
+    updateelements();
+}
+
+function overlapNode(x, y) {
+    for (var i = 0, n = nodes.length; i < n; ++i) {
+        var node = nodes[i];
+        var dist = Math.sqrt(Math.pow(Math.abs(x - node.x),2) + Math.pow(Math.abs(y - node.y),2));
+	    if (dist < (1.25 * node.radius)) {
+            return node;
+        }
+    }
+    return null;
+}
+
+function findOverlap(d) {
+    for (var i = 0, n = controls.length; i < n; ++i) {
+        var control = controls[i];
+        if (control.id == d.id) { continue; }
+        var dist = Math.sqrt(Math.pow(Math.abs(d.x - control.x),2) + Math.pow(Math.abs(d.y - control.y),2));
+	    if (dist < (1.25 * control.radius)) {
+            return control;
+        }
+    }
+    return null;
+}
+
+function clicked(d) {
+	if (d3.event.defaultPrevented) return; // dragged
+    if (d.type == 'pin') {
+	    d.fill = c20[Math.trunc(Math.random()*20)];
+	    d3.select(this).transition()
+		    .style("fill", function(d, i) { return d.fill; });
+    }
+    if (d.type == 'link') {
+        var i = links.indexOf(d);
+        links.splice(i, 1);
+        updateelements();
+    }
+    if (d.type == 'mode') {
+        if (d.mode == 'spawn') {
+            d.mode = 'link';
+            d.fill = d3.color('grey');
+        }
+        else if (d.mode == 'link') {
+            d.mode = 'grav';
+            d.fill = d3.color('green');
+        }
+        else {
+            d.mode = 'spawn';
+            d.fill = d3.color('black');
+        }
+	    d3.select(this).transition()
+		    .style("fill", function(d, i) { return d.fill; });
+    }
+}
+
+function dragstarted(d) {
+    let mode = controls[0].mode;
+    if (mode == 'spawn') {
+        if (d.type == 'spawner') {
+            let gravity = Math.trunc(Math.random()*8);
+            var pin = {id:`node${nodeid}`, type:'pin', radius:d.radius, x:d.x, y:d.y, fill:c20[gravity], gravity:gravity, vx:0, vy:0};
+            nodes.push(pin);
+            nodeid = nodeid + 1;
+            d.dragging = pin;
+            updateelements();
+            pin.sx = 0;
+            pin.sy = 0;
+            pin.fx = d.x;
+            pin.fy = d.y;
+            simulation.alpha(1).restart();
+        }
+    }
+    if (mode == 'link') {
+        if (d.type == 'pin') {
+            controls[0].source = d;
+        }
+    }
+    // simulation.restart();
+    // simulation.velocityDecay(0.01);
+//    simulation.force("collide").strength(0);
+	// if (d.type == 'spawner') {
+	// 	d.type = 'pin';
+	// 	d.gravity = Math.trunc(Math.random()*8);
+	// 	d.fill = c20[d.gravity];
+	// 	var idval = `node${nodeid}`;
+	// 	var sp = {id:idval, type:'spawner', radius:d.radius, x:d.x, y:d.y, fill:d3.color('black'), vx:0, vy:0};
+    //     spawners[sp.id] = sp;
+    //     delete spawners[d.id];
+	//     nodes.push(sp);
+    // 	nodeid = nodeid + 1;
+	// 	updateelements();
+	// }
+	// d.sx = 0;
+	// d.sy = 0;
+    // d.fx = d.x;
+    // d.fy = d.y;
+}
+
+function dragged(d) {
+    let mode = controls[0].mode;
+    let dtarget = d;
+    if (d.type == 'spawner') {
+        dtarget = d.dragging;
+    }
+    if (mode == 'link') {
+        dtarget = null;
+    }
+    if (dtarget) {
+	    dtarget.sx = d3.event.x - dtarget.fx;
+	    dtarget.sy = d3.event.y - dtarget.fy;
+        dtarget.fx = d3.event.x;
+        dtarget.fy = d3.event.y;
+    }
+//    var o = findOverlap(d);
+//     if (o && o.type == 'pin' && d.type == 'pin' && !flux.includes(o.id)) {
+//         let l = idstolink(o.id, d.id);
+//         if (l) { // remove the existing link
+//             var i = links.indexOf(l);
+//             links.splice(i, 1);
+//         }
+//         else { // add a new link
+// //            l = {source:d.id,target:o.id,value:0,type:'link'};
+//             l = {source:idtonode(d.id), target:idtonode(o.id), value:0} //, index:links.length}
+// //            l = {source:d,target:o,value:0,type:'link',index:links.length};
+//             links.push(l);
+//         }
+//         flux.push(o.id);
+//     }
+}
+
+function dragended(d) {
+    let mode = controls[0].mode;
+    let dtarget = d;
+    if (d.type == 'spawner') {
+        dtarget = d.dragging;
+        d.dragging = null;
+    }
+    if (dtarget) {
+        dtarget.vx = dtarget.sx;
+        dtarget.vy = dtarget.sy;
+        dtarget.fx = null;
+        dtarget.fy = null;
+    }
+    simulation.alphaTarget(0.1);
+    var o = findOverlap(d);
+    if (mode == 'spawn') {
+        if (o && o.type == 'spawner') {
+            deletenode(d);
+        }
+    }
+    if (mode == 'link') {
+        let o = overlapNode(d3.event.x, d3.event.y);
+        if (o && o.type == 'pin') {
+            controls[0].target = o;
+            if (controls[0].source != controls[0].target) {
+                l = {type:'link', source:controls[0].source, target:controls[0].target, value:0}
+                links.push(l);
+                updateelements();
+            }
+        }
+    }
+    // flux.length = 0;
+    //simulation.force("collide").strength(1.0);
+}
+
+// Apply forces
+function forces(alpha) {
+  var ymin = 25, xmin = 25;
+  var ymax = svg.node().scrollHeight - 25;
+  var xmax = svg.node().scrollWidth - 25;
+
+  for (var i = 0, n = nodes.length, node, k = alpha * 0.1; i < n; ++i) {
+    node = nodes[i];
+
+    // apply forces from each connected link to maintain the link length
+    let dvx = 0, dvy = 0;
+    donodelinks(node, x => {
+        // calculate the link length
+        s = idtonode(x.source);
+        t = idtonode(x.target);
+        dx = t.x - s.x;
+        dy = t.y - s.y;
+        ldif = Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2)) - 100;
+        dir = (node.id == x.source) ? 1 : -1; // source to target direction
+        ldif = ldif * dir;
+        if (ldif > 10) {
+            dvx = dvx + 0.15*dx;
+            dvy = dvy + 0.15*dy;
+        }
+        else if (ldif < -10) {
+            dvx = dvx - 0.15*dx;
+            dvy = dvy - 0.15*dy;
+        }
+    });
+    node.vx = dvx;
+    node.vy = dvy;
+
+    // stillness (bring very slow movement to a complete stop)
+	if (Math.abs(node.vy) < 5) { node.vy = 0; }
+	if (Math.abs(node.vx) < 5) { node.vx = 0; }
+
+/*
+    if (node.type == 'spawner') {
+		node.x = svg.node().scrollWidth/2;
+		node.y = svg.node().scrollHeight/2;
+		continue;
+	}
+
+	// bounce top
+	if (node.y <= ymin && node.vy < 0) {
+		node.vy = 0.9*(-node.vy);
+		if (node.vy < 2) { node.vy = 0; node.y = ymin; }
+	}
+	// bounce bottom
+	if (node.y >= ymax && node.vy > 0) {
+		node.vy = 0.9*(-node.vy);
+		if (node.vy > -2) { node.vy = 0; node.y = ymax; }
+	}
+	// bounce left
+	if (node.x <= xmin && node.vx < 0) {
+		node.vx = 0.9*(-node.vx);
+		if (node.vx < 2) { node.vx = 0; node.x = xmin; }
+	}
+	// bounce right
+	if (node.x >= xmax && node.vx > 0) {
+		node.vx = 0.9*(-node.vx);
+		if (node.vx > -2) { node.vx = 0; node.x = xmax; }
+	}
+
+	if ([0,4,7].includes(node.gravity)) {
+		// gravity down
+		if (node.y < ymax) { node.vy += 400*k; }
+	}
+
+	if ([1,4,5].includes(node.gravity)) {
+		// gravity left
+		if (node.x > xmin) { node.vx -= 400*k; }
+	}
+
+	if ([2,5,6].includes(node.gravity)) {
+		// gravity up
+		if (node.y > ymin) { node.vy -= 400*k; }
+	}
+
+	if ([3,6,7].includes(node.gravity)) {
+		// gravity right
+		if (node.x < xmax) { node.vx += 400*k; }
+	}
+*/
+	// stopped
+    if (node.vx == 0 && node.vy == 0) {
+//		node.gravity = (node.gravity + 1) % 8;
+		// node.gravity = Math.trunc(Math.random()*8);
+		// node.fill = c20[node.gravity];
+		updateelements();
+    }
+  }
+}
+
+//simulation.force("forces", forces);
+//simulation.force("links", d3.forceLink(links).id(d => d.id).distance(60).iterations(10));
+simulation.force("links", d3.forceLink(links).distance(60).iterations(1));
+simulation.force("collide", d3.forceCollide().radius(d => d.radius).iterations(3));
+simulation.velocityDecay(0.01);
+simulation.alphaTarget(0.1);
+
+simulation.on("tick", function(e) {
+	svg.selectAll(".node")
+		.attr("cx", function(d) { return d.x||100; })
+		.attr("cy", function(d) { return d.y||100; });
+    svg.selectAll(".link")
+        .attr("x1", d => idtonode(d.source).x)
+        .attr("y1", d => idtonode(d.source).y)
+        .attr("x2", d => idtonode(d.target).x)
+        .attr("y2", d => idtonode(d.target).y);
+});
+
+</script>
