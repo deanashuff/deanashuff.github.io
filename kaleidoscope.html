@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random Image Kaleidoscope</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    .kaleidoscope-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: black;
+      overflow: hidden;
+      cursor: grab;
+    }
+
+    .kaleidoscope {
+      position: absolute;
+      width: 800px;
+      height: 800px;
+      background-size: cover;
+      border-radius: 75%;
+      background-repeat: no-repeat;
+      transition: transform 0.1s ease-out;
+    }
+
+    .slice1 { clip-path: none; }
+    .slice2 { clip-path: polygon(0% 0%, 50% 0%, 50% 100%, 0% 100%); }
+    .slice4 { clip-path: polygon(0% 0%, 50% 50%, 0% 100%); }
+    .slice6 { clip-path:polygon(0% 21%, 50% 50%, 0% 79%); }
+    .slice8 { clip-path:polygon(0% 29%, 50% 50%, 0% 71%); }
+  </style>
+</head>
+<body>
+  <div class="kaleidoscope-container"></div>
+
+  <script>
+    const imageUrl = 'https://picsum.photos/1000'; // random image from Lorem Picsum
+
+    function renderSlices(count) {
+      container.textContent = ''; // clear the container
+      let scale = 1.0;
+      for (i=0; i<count; i++) {
+        slice = document.createElement("div");
+        slice.classList.add('kaleidoscope', `slice${count}`);
+        slice.style.backgroundImage = `url(${imageUrl})`;
+        slice.style.backgroundPosition = `${offsetX}px ${offsetY}px`;
+        slice.style.transform = `rotate(${i*(360/count)}deg) scaleY(${scale})`;
+        container.appendChild(slice);
+        scale = -1.0*scale;
+      }
+      kaleidoscope = document.querySelectorAll('.kaleidoscope');
+    }
+
+    // DOM Elements
+    const container = document.querySelector('.kaleidoscope-container');
+    const counts = [1,2,4,6,8];
+
+    // Initial kaleidoscope state
+    let kaleidoscope = 0;
+    let isDragging = false, didDrag = false;
+    let offsetX = 0, offsetY = 0;
+    let lastX = 0, lastY = 0;
+    let startX = 0, startY = 0;
+    let countIndex = 4;
+
+    renderSlices(counts[countIndex]);
+
+    function startDrag(e) {
+      isDragging = true;
+      didDrag = false;
+      lastX = e.clientX;
+      lastY = e.clientY;
+      startX = offsetX;
+      startY = offsetY;
+      container.style.cursor = 'grabbing';
+    }
+
+    function stopDrag(e) {
+      isDragging = false;
+      container.style.cursor = 'grab';
+    }
+
+    function dragImage(dx, dy) {
+      offsetX += dx;
+      offsetY += dy;
+      kaleidoscope.forEach((slice) => {
+        slice.style.backgroundPosition = `${offsetX}px ${offsetY}px`;
+      });
+      if (Math.abs(startX - offsetX) > 4 || Math.abs(startY - offsetY) > 4) {
+        didDrag = true;
+      }
+    }
+    function moveDrag(e) {
+      if (isDragging) {
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        dragImage(dx, dy);
+        lastX = e.clientX;
+        lastY = e.clientY;
+      }
+    }
+
+    function cycleSliceCount() {
+      if (!didDrag) {
+        countIndex = countIndex+1;
+        if (countIndex >= counts.length) { countIndex = 0; }
+        renderSlices(counts[countIndex]);
+      }
+    }
+
+    container.addEventListener('mousedown', startDrag);
+    container.addEventListener('mouseup', stopDrag);
+    container.addEventListener('mouseleave', stopDrag);
+    container.addEventListener('mousemove', moveDrag);
+    container.addEventListener('click', cycleSliceCount);
+  </script>
+</body>
+</html>
