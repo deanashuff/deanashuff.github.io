@@ -79,8 +79,8 @@
     function startDrag(e) {
       isDragging = true;
       didDrag = false;
-      lastX = e.clientX;
-      lastY = e.clientY;
+      lastX = e.pageX;
+      lastY = e.pageY;
       startX = offsetX;
       startY = offsetY;
       container.style.cursor = 'grabbing';
@@ -103,11 +103,11 @@
     }
     function moveDrag(e) {
       if (isDragging) {
-        const dx = e.clientX - lastX;
-        const dy = e.clientY - lastY;
+        const dx = e.pageX - lastX;
+        const dy = e.pageY - lastY;
         dragImage(dx, dy);
-        lastX = e.clientX;
-        lastY = e.clientY;
+        lastX = e.pageX;
+        lastY = e.pageY;
       }
     }
 
@@ -123,6 +123,9 @@
     container.addEventListener('mouseup', stopDrag);
     container.addEventListener('mouseleave', stopDrag);
     container.addEventListener('mousemove', moveDrag);
+    container.addEventListener('touchstart', startDrag);
+    container.addEventListener('touchend', stopDrag);
+    container.addEventListener('touchmove', moveDrag);
     container.addEventListener('click', cycleSliceCount);
   </script>
 </body>
