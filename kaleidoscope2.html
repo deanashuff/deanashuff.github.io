@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Random Image Kaleidoscope</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      height: 100%;
+    }
+
+    .kaleidoscope-container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background-color: black;
+      overflow: hidden;
+      cursor: grab;
+    }
+
+    .kaleidoscope {
+      position: absolute;
+      width: 800px;
+      height: 800px;
+      background-size: cover;
+/*      border-radius: 100%;*/
+      background-repeat: no-repeat;
+      transition: transform 0.1s ease-out;
+    }
+
+    .slicea { transform: scaleX(1); }
+    .sliceb { clip-path: polygon(50% 25%, 78.8675134595% 75%, 21.1324865405% 75%); transform-origin: 50% 58.3333333333%; }
+    .slicec { clip-path: polygon(50% 37.5%, 64.4337567297% 62.5%, 35.5662432703% 62.5%); transform-origin: 50% 54.1666666667%; }
+    .sliced { clip-path: polygon(50% 43.75%, 57.2168783649% 56.4%, 42.7831216351% 56.4%); transform-origin: 50% 52.08333333333%; }
+    .slicee { clip-path: polygon(50% 46.875%, 53.6084391824% 53.125%, 46.3915608176% 53.125%); transform-origin: 50% 51.04166666667%; }
+  </style>
+</head>
+<body>
+  <div class="kaleidoscope-container"></div>
+
+  <script>
+    const imageUrl = 'https://picsum.photos/1000'; // random image from Lorem Picsum
+    let root3 = 1.7320508076;
+    let sizes = [100,50,25,12.5,6.25];
+
+    function newSlice(type, x, y) {
+      let types = ['slicea','sliceb','slicec','sliced','slicee'];
+      let transforms = [
+        ``,
+        `rotate(-60deg) scaleX(-1)`,
+        `rotate(120deg) scaleX(1)`,
+        `rotate(180deg) scaleX(-1)`,
+        `rotate(240deg) scaleX(1)`,
+        `rotate(60deg) scaleX(-1)`
+      ];
+      let xmod = (x+66+(3*y))%6;
+      let s = sizes[type];
+      let dx = x*s/root3;
+      let dy = Math.abs(xmod%2)*(-s/3) + y*s;
+      let slice = document.createElement("div");
+      slice.classList.add('kaleidoscope', types[type]);
+      slice.style.backgroundImage = `url(${imageUrl})`;
+      slice.style.backgroundPosition = `${offsetX}px ${offsetY}px`;
+      slice.style.transform = `translateX(${dx}%) translateY(${dy}%) ${transforms[xmod]}`;
+      return slice;
+    }
+
+    function renderSlices(type) {
+      container.textContent = ''; // clear the container
+      let s = sizes[type];
+      let xmax = Math.floor(125 / (s/root3));
+      let ymax = Math.floor(125 / s);
+      if (type == 0) {
+        xmax = 0;
+        ymax = 0;
+      }
+      for (x=-xmax; x<=xmax; x++) {
+        for (y=-ymax; y<=ymax; y++) {
+          slice = newSlice(type,x,y);
+          container.appendChild(slice);
+        }
+      }
+
+      kaleidoscope = document.querySelectorAll('.kaleidoscope');
+    }
+
+    // DOM Elements
+    const container = document.querySelector('.kaleidoscope-container');
+    const counts = [0,1,2,3,4];
+
+    // Initial kaleidoscope state
+    let kaleidoscope = 0;
+    let isDragging = false, didDrag = false;
+    let offsetX = 0, offsetY = 0;
+    let lastX = 0, lastY = 0;
+    let startX = 0, startY = 0;
+    let countIndex = 3;
+
+    renderSlices(counts[countIndex]);
+
+    function startDrag(e) {
+      isDragging = true;
+      didDrag = false;
+      lastX = e.pageX;
+      lastY = e.pageY;
+      startX = offsetX;
+      startY = offsetY;
+      container.style.cursor = 'grabbing';
+    }
+
+    function stopDrag(e) {
+      isDragging = false;
+      container.style.cursor = 'grab';
+    }
+
+    function dragImage(dx, dy) {
+      offsetX += dx;
+      offsetY += dy;
+      kaleidoscope.forEach((slice) => {
+        slice.style.backgroundPosition = `${offsetX}px ${offsetY}px`;
+      });
+      if (Math.abs(startX - offsetX) > 4 || Math.abs(startY - offsetY) > 4) {
+        didDrag = true;
+      }
+    }
+    function moveDrag(e) {
+      if (isDragging) {
+        const dx = e.pageX - lastX;
+        const dy = e.pageY - lastY;
+        dragImage(dx, dy);
+        lastX = e.pageX;
+        lastY = e.pageY;
+      }
+    }
+
+    function cycleSliceCount() {
+      if (!didDrag) {
+        countIndex = countIndex+1;
+        if (countIndex >= counts.length) { countIndex = 0; }
+        renderSlices(counts[countIndex]);
+      }
+    }
+
+    container.addEventListener('mousedown', startDrag);
+    container.addEventListener('mouseup', stopDrag);
+    container.addEventListener('mouseleave', stopDrag);
+    container.addEventListener('mousemove', moveDrag);
+    container.addEventListener('touchstart', startDrag);
+    container.addEventListener('touchend', stopDrag);
+    container.addEventListener('touchmove', moveDrag);
+    container.addEventListener('click', cycleSliceCount);
+  </script>
+</body>
+</html>
