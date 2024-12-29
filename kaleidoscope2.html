@@ -74,8 +74,9 @@
     function renderSlices(type) {
       container.textContent = ''; // clear the container
       let s = sizes[type];
-      let xmax = Math.floor(125 / (s/root3));
-      let ymax = Math.floor(125 / s);
+      let xpct = window.outerWidth/8, ypct = window.outerHeight/8;
+      let xmax = Math.ceil(xpct / (s/2*root3));
+      let ymax = Math.ceil(ypct / (2*s));
       if (type == 0) {
         xmax = 0;
         ymax = 0;
