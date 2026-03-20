@@ -3,64 +3,87 @@
 <script src="https://d3js.org/d3-force.v1.min.js"></script>
 <!--
 Use the Link Force in the d3-force module to represent chains.
-Use a simulation.force to represent a machine, applying only to proximate nodes in the chain.
-Use a simulation.force to represent gravity.
-Provide interface actions to:
-1. create a new node, or delete an existing node
-2. link two nodes, or delete a link
-3. create a new machine or delete an existing machine
+Use a simulation.force to represent a machine, including forces for links, collision, gravity, floor and lift.
+Provide interface handlers to:
+1. adjust parameters: gravity, speed, height, range, and squeeze
+2. click to change node color
+3. drag to move nodes
 -->
 <style>
 html, body { margin:0; padding:0; overflow:hidden; }
-svg { position:fixed; top:0; left:0; height:100%; width:100%; }
-#gametext { position:absolute; padding:20px; font-family:monaco; font-size:60px; color:blue; }
-#score { color:black; }
-.winning { color:green; }
-.losing { color:red; }
 .link { stroke-width: 5px; stroke: #444 }
+#params { position:relative; height:50px; padding:10px; font-family:monaco; font-size:20px; color:lightblue; }
+#chainarea { position: relative; height: calc(100% - 100px); width: 100%; padding:0px; background-color: #333; }
+#chainarea svg { position:relative; height:100%; width:100%; background-color: grey; }
+.darkmode { background-color: black; }
 </style>
 
-<div>
-	<div id="gametext"></div>
-	<svg id="chains"></svg>
+<div class="darkmode">
+    <div id="params">
+        <label for="gravity">Gravity</label>: <input id="gravity" type="number" min="0" max="10" step="1"></input>
+        <label for="speed">Speed</label>: <input id="speed" type="number" min="0" max="10" step="1"></input>
+        <label for="height">Height</label>: <input id="height" type="number" min="0" max="10" step="1"></input>
+        <label for="range">Width</label>: <input id="range" type="number" min="0" max="10" step="1"></input>
+        <label for="squeeze">Squeeze</label>: <input id="squeeze" type="number" min="0" max="10" step="1"></input>
+    </div>
+    <div id="chainarea"><svg id="chains"></svg></div>
 </div>
 
 <script>
 
-// define variables including initial nodes, simulation, and svg
+// define parameters, elements, and positional variables
+var params = {
+    count: 40,
+    radius: 30,
+    speed: 2,
+    gravity: 5,
+    height: 6,
+    squeeze: 2,
+    range: 2
+};
+var c20 = d3.schemeCategory20;
+var svg = d3.select("#chains");
 var svgEl = document.getElementById("chains");
 var svgX = svgEl.clientWidth, svgY = svgEl.clientHeight;
+var midX = 0.5*svgX, midY = 0.6*svgY;
+var deltaX = midX/params.count;
 
-var c20 = d3.schemeCategory20;
+// handle parameter editing
+function initParam(name) {
+    var el = document.getElementById(name);
+    el.value = params[name];
+    el.addEventListener('input', (event) => {
+        params[name] = parseInt(event.target.value);
+        setForces();
+    });
+}
+for (const p of ["gravity", "speed", "height", "squeeze", "range"]) {
+    initParam(p);
+}
 
-var nodes = [
-    // {id:'node0', type:'spawner', radius:20, x:200, y:200, fill:d3.color('black'), vx:0, vy:0},
-    // {id:'node1', type:'spawner', radius:20, x:200, y:300, fill:d3.color('black'), vx:0, vy:0},
-    // {id:'node10', type:'pin', radius:20, x:300, y:350, fill:d3.color('red'), vx:0, vy:0},
-    // {id:'node11', type:'pin', radius:20, x:300, y:400, fill:d3.color('green'), vx:0, vy:0},
-    // {id:'node12', type:'pin', radius:20, x:300, y:400, fill:d3.color('blue'), vx:0, vy:0}
-];
-var count = 40;
-for (var i = 0; i < count; ++i) {
-    var node = { id:`node${i}`, type:'pin', radius:20, x:10 + 40*i, y:svgY/2, fill:c20[Math.trunc(Math.random()*20)], vx:0, vy:0 };
+
+// define nodes and links
+var nodes = [];
+for (var i = 0; i < params.count; ++i) {
+    var node = { id:`node${i}`, type:'pin', radius:params.radius, x:midX/2 + deltaX*i, y:midY, fill:c20[Math.trunc(Math.random()*20)], vx:0, vy:0 };
     nodes.push(node);
 }
-var links = [
-//    {source:nodes[2],target:nodes[3],value:0},{source:nodes[3],target:nodes[4],value:0}
-];
-for (i=0; i<count; ++i) {
-    let t = (i >= count-1 ? 0 : i+1);
+var links = [];
+for (i=0; i<params.count; ++i) {
+    let t = (i >= params.count-1 ? 0 : i+1);
     var link = { source:nodes[i], target:nodes[t], value:0 };
     links.push(link);
 }
-var flux = [];
-var spawners = {'node0':nodes[0],'node1':nodes[1]};
-var nodeid = nodes.length;
 var simulation = d3.forceSimulation(nodes);
-var svg = d3.select("#chains");
-var svgEl = document.getElementById("chains");
+
 
 // update graphical elements (nodes and links)
+
+function idtonode(id) {
+    if (typeof id !== "string") { return id; }
+    return nodes.find(d => d.id === id);
+}
+
 function updateelements() {
     ns = svg.selectAll(".node").data(nodes);
 	ns.enter().append("svg:circle")
@@ -91,84 +114,25 @@ function updateelements() {
         .attr("y2", function(d) { return idtonode(d.target).y; })
 		.on("click",clicked)
     ls.exit().remove();
-
-
-    // let linkforce = simulation.force("links");
-    // if (linkforce) { linkforce.start(); }
-    // let collideforce = simulation.force("collide");
-    // if (collideforce) { linkforce.start(); }
 }
+
 updateelements();
 
 
-// Functions for manipulating nodes
-
-function idtonode(id) {
-    if (typeof id !== "string") { return id; }
-    return nodes.find(d => d.id === id);
-}
-
-function idstolink(a, b) {
-    return links.find(x => (x.source == a && x.target == b) || (x.target == a && x.source == b));
-}
-
-// perform the given function for all links associated with the given pin node
-function donodelinks(d, f) {
-    const ls = links.filter(l => (l.source == d.id || l.target == d.id));
-    for (let i = 0, n = ls.length; i < n; ++i) {
-        f(ls[i]);
-    }
-}
-
-function deletenode(d) {
-    // find and delete links associated with the given node
-    donodelinks(d, x => { let l = links.indexOf(x); links.splice(l, 1); });
-    // delete the given node from the nodes array
-    let i = nodes.indexOf(d);
-    nodes.splice(i, 1);
-}
-
-function findOverlap(d) {
-    for (var i = 0, n = nodes.length; i < n; ++i) {
-        var node = nodes[i];
-        if (node.id == d.id) { continue; }
-        var dist = Math.sqrt(Math.pow(Math.abs(d.x - node.x),2) + Math.pow(Math.abs(d.y - node.y),2));
-	    if (dist < (1.25 * node.radius)) {
-            return node;
-        }
-    }
-    return null;
-}
+// Handle node clicking and dragging
 
 function clicked(d) {
-	if (d3.event.defaultPrevented) return; // dragged
+	if (d3.event.defaultPrevented) return; // prevent when dragged
     if (d.type == 'pin') {
 	    d.fill = c20[Math.trunc(Math.random()*20)];
 	    d3.select(this).transition()
 		    .style("fill", function(d, i) { return d.fill; });
-    }
-    if (d.type == 'link') {
-        var i = links.indexOf(d);
-        links.splice(i, 1);
     }
 }
 
 function dragstarted(d) {
     simulation.restart();
     simulation.velocityDecay(0.01);
-//    simulation.force("collide").strength(0);
-	if (d.type == 'spawner') {
-		d.type = 'pin';
-		d.gravity = Math.trunc(Math.random()*8);
-		d.fill = c20[d.gravity];
-		var idval = `node${nodeid}`;
-		var sp = {id:idval, type:'spawner', radius:d.radius, x:d.x, y:d.y, fill:d3.color('black'), vx:0, vy:0};
-        spawners[sp.id] = sp;
-        delete spawners[d.id];
-	    nodes.push(sp);
-    	nodeid = nodeid + 1;
-		updateelements();
-	}
 	d.sx = 0;
 	d.sy = 0;
     d.fx = d.x;
@@ -180,21 +144,6 @@ function dragged(d) {
 	d.sy = d3.event.y - d.fy;
     d.fx = d3.event.x;
     d.fy = d3.event.y;
-//    var o = findOverlap(d);
-//     if (o && o.type == 'pin' && d.type == 'pin' && !flux.includes(o.id)) {
-//         let l = idstolink(o.id, d.id);
-//         if (l) { // remove the existing link
-//             var i = links.indexOf(l);
-//             links.splice(i, 1);
-//         }
-//         else { // add a new link
-// //            l = {source:d.id,target:o.id,value:0,type:'link'};
-//             l = {source:idtonode(d.id), target:idtonode(o.id), value:0} //, index:links.length}
-// //            l = {source:d,target:o,value:0,type:'link',index:links.length};
-//             links.push(l);
-//         }
-//         flux.push(o.id);
-//     }
 }
 
 function dragended(d) {
@@ -203,107 +152,52 @@ function dragended(d) {
     d.fx = null;
     d.fy = null;
     simulation.alphaTarget(0.1);
-    var o = findOverlap(d);
-    if (o && o.type == 'spawner') {
-        deletenode(d);
-    }
-    flux.length = 0;
-//    simulation.force("collide").strength(1.0);
 }
-
-// Apply forces
-// function forces(alpha) {
-//   var ymin = 25, xmin = 25;
-//   var ymax = svg.node().scrollHeight - 25;
-//   var xmax = svg.node().scrollWidth - 25;
-
-//   for (var i = 0, n = nodes.length, node, k = alpha * 0.1; i < n; ++i) {
-//     node = nodes[i];
-
-//     // apply forces from each connected link to maintain the link length
-//     let dvx = 0, dvy = 0;
-//     donodelinks(node, x => {
-//         // calculate the link length
-//         s = idtonode(x.source);
-//         t = idtonode(x.target);
-//         dx = t.x - s.x;
-//         dy = t.y - s.y;
-//         ldif = Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2)) - 100;
-//         dir = (node.id == x.source) ? 1 : -1; // source to target direction
-//         ldif = ldif * dir;
-//         if (ldif > 10) {
-//             dvx = dvx + 0.15*dx;
-//             dvy = dvy + 0.15*dy;
-//         }
-//         else if (ldif < -10) {
-//             dvx = dvx - 0.15*dx;
-//             dvy = dvy - 0.15*dy;
-//         }
-//     });
-//     node.vx = dvx;
-//     node.vy = dvy;
-
-//     // stillness (bring very slow movement to a complete stop)
-// 	if (Math.abs(node.vy) < 5) { node.vy = 0; }
-// 	if (Math.abs(node.vx) < 5) { node.vx = 0; }
-
-// 	// stopped
-//     if (node.vx == 0 && node.vy == 0) {
-// //		node.gravity = (node.gravity + 1) % 8;
-// 		// node.gravity = Math.trunc(Math.random()*8);
-// 		// node.fill = c20[node.gravity];
-// 		updateelements();
-//     }
-//   }
-// }
 
 function strengthMax(link) {
   return 0.5;
 }
 
+
+// Define forces, including for the floor and lift
+
 function forceFloor(alpha) {
   for (let i = 0, n = nodes.length, node, k = alpha * 0.1; i < n; ++i) {
     node = nodes[i];
-//    node.vx -= node.x * k;
-//    node.vy -= node.y * k;
     let fixed = false;
-    if (node.x > (svgX/2 - 20) && node.x < (svgX/2 + 0) && node.y > (svgY/2 - 120) && node.y < (svgY/2 + 100)) {
-        // node.x = svgX/2;
+    if (node.x > (midX - params.radius/2) && node.x < (midX + params.radius/2) && node.y > (midY - params.radius*params.height) && node.y < (midY + params.radius*4)) {
         node.vx = 0;
-        node.vy = -2;
+        node.vy = -params.speed*params.radius/20;
         fixed = true;
     }
-    // if (node.x > (svgX/2 - 0) && node.x < (svgX/2 + 50) && node.y > (svgY/2 - 100) && node.y < (svgY/2 + 50)) {
-    //     // node.x = svgX/2;
-    //     node.vx = 0;
-    //     node.vy = 2;
-    //     skip = true;
-    // }
-    // if (node.x > (svgX/2 - 50) && node.x < svgX/2 && node.y > (svgY/2 - 100) && node.y < (svgY/2 + 0)) { node.x = svgX/2-25; node.vx = 0; node.vy = -2; skip = true; }
-    // if (node.x > svgX/2 && node.x < (svgX/2 + 50) && node.y > (svgY/2 - 100) && node.y < (svgY/2 + 0)) { node.x = svgX/2+25; node.vx = 0; node.vy = 2; skip = true; }
     if (!fixed) {
-        if (node.x < (svgX/2-100)) {
-            node.vx += 0.4;
+        if (node.x < (midX-2*params.radius*params.range)) {
+            node.vx += 0.2*params.squeeze; //*20*Math.abs(node.x - svgX/2)/svgX;
         }
-        if (node.x > (svgX/2+100)) {
-            node.vx += -0.4;
+        if (node.x > (midX+2*params.radius*params.range)) {
+            node.vx += -0.2*params.squeeze; //*20*Math.abs(node.x - svgX/2)/svgX;
         }
-        if (node.y > svgY/2) { node.vy = -0.1; }
+        if (node.y > midY) {
+            // node.y = midY; 
+            // node.y -= 2;
+            node.vy = -0.1;
+        }
     }
-
-    // if (node.x > svgX/2 && node.x < svgX/2 + 50 && Math.abs(node.y - svgY/2) < 30) { node.vx = 0; node.vy = 2; }
   }
 }
 
-//simulation.force("forces", forces);
-//simulation.force("links", d3.forceLink(links).id(d => d.id).distance(60).iterations(10));
-simulation.force("links", d3.forceLink(links).distance(30).iterations(100));
-simulation.force("collide", d3.forceCollide().radius(d => d.radius).iterations(100));
-simulation.force("gravity", d3.forceY(svgY/2+20));
-simulation.force("floor", forceFloor);
+function setForces() {
+    simulation.force("links", d3.forceLink(links).distance(params.radius*1.5).iterations(100));
+    simulation.force("collide", d3.forceCollide().radius(d => d.radius).iterations(100));
+    simulation.force("gravity", d3.forceY(midY+40).strength(0.01*params.gravity));
+    simulation.force("floor", forceFloor);
+}
+
+setForces();
+
+
 simulation.velocityDecay(0.01);
 simulation.alphaTarget(0.1);
-
 simulation.on("tick", function(e) {
 	svg.selectAll(".node")
 		.attr("cx", function(d) { return d.x||100; })
