@@ -12,21 +12,24 @@ Provide interface handlers to:
 <style>
 html, body { margin:0; padding:0; overflow:hidden; }
 .link { stroke-width: 5px; stroke: #444 }
-#params { position:relative; height:50px; padding:10px; font-family:monaco; font-size:20px; color:lightblue; }
-#chainarea { position: relative; height: calc(100% - 100px); width: 100%; padding:0px; background-color: #333; }
+#params { position:relative; padding:10px; font-family:monaco; font-size:24px; color:lightblue; text-align:center; }
+#chaindesc { position:relative; padding:10px; font-family:monaco; font-size:24px; color:lightblue; text-align:center; }
+#chainarea { position: relative; height: calc(100% - 200px); width: 100%; padding:0px; background-color: #333; }
 #chainarea svg { position:relative; height:100%; width:100%; background-color: grey; }
 .darkmode { background-color: black; }
+#params input { field-sizing: content; font-family:monaco; font-size:24px; color:lightblue; background-color:black; }
 </style>
 
 <div class="darkmode">
     <div id="params">
-        <label for="gravity">Gravity</label>: <input id="gravity" type="number" min="0" max="10" step="1"></input>
-        <label for="speed">Speed</label>: <input id="speed" type="number" min="0" max="10" step="1"></input>
-        <label for="height">Height</label>: <input id="height" type="number" min="0" max="10" step="1"></input>
-        <label for="range">Width</label>: <input id="range" type="number" min="0" max="10" step="1"></input>
-        <label for="squeeze">Squeeze</label>: <input id="squeeze" type="number" min="0" max="10" step="1"></input>
+        <label for="gravity">Gravity</label>: <input id="gravity" type="number" inputmode="numeric" min="0" max="10" step="1"></input>
+        <label for="speed">Speed</label>: <input id="speed" type="number" inputmode="numeric" min="0" max="10" step="1"></input>
+        <label for="height">Height</label>: <input id="height" type="number" inputmode="numeric" min="0" max="10" step="1"></input>
+        <label for="range">Width</label>: <input id="range" type="number" inputmode="numeric" min="0" max="10" step="1"></input>
+        <label for="squeeze">Squeeze</label>: <input id="squeeze" type="number" inputmode="numeric" min="0" max="10" step="1"></input>
     </div>
     <div id="chainarea"><svg id="chains"></svg></div>
+    <div id="chaindesc">Inspired by <a href="https://www.arthurganson.com/roller-chain-1" target="_blank">Machine with Roller Chain</a> by Arthur Ganson</div>
 </div>
 
 <script>
@@ -35,7 +38,7 @@ html, body { margin:0; padding:0; overflow:hidden; }
 var params = {
     count: 40,
     radius: 30,
-    speed: 2,
+    speed: 3,
     gravity: 5,
     height: 6,
     squeeze: 2,
@@ -45,7 +48,7 @@ var c20 = d3.schemeCategory20;
 var svg = d3.select("#chains");
 var svgEl = document.getElementById("chains");
 var svgX = svgEl.clientWidth, svgY = svgEl.clientHeight;
-var midX = 0.5*svgX, midY = 0.6*svgY;
+var midX = 0.5*svgX, midY = 0.75*svgY;
 var deltaX = midX/params.count;
 
 // handle parameter editing
